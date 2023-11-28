@@ -19,20 +19,24 @@ print( const std::vector<T> & v ) {
 }
 
 std::tuple<int, std::string>
-exec( const char * cmd ) {
+exec( const char * const cmd ) {
+    std::string full_cmd{ cmd };
+    full_cmd += " 2>&1";
+
     std::array<char, 128>                      buffer;
-    std::string                                result;
-    std::unique_ptr<FILE, decltype( &pclose )> pipe( popen( cmd, "r" ),
-                                                     pclose );
+    std::unique_ptr<FILE, decltype( &pclose )> pipe(
+        popen( full_cmd.c_str(), "r" ), pclose );
+
     if ( !pipe ) {
         return { 1, std::string{ "popen() failed to open." } };
     }
 
+    std::string std_output;
     while ( fgets( buffer.data(), buffer.size(), pipe.get() ) != nullptr ) {
-        result += buffer.data();
+        std_output += buffer.data();
     }
 
-    return { 0, result };
+    return { 0, std_output };
 }
 
 int
@@ -65,7 +69,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*max_line_size=*/256 ) };
 
 
-    const NVAR::Index                  d{ 2 }, k{ 3 }, s{ 8 }, p{ 4 };
+    const NVAR::Index                  d{ 2 }, k{ 3 }, s{ 3 }, p{ 2 };
     [[maybe_unused]] const NVAR::Index n{ -1 };
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}, n = {}\n", d, k,
                               s, p, n );
@@ -76,21 +80,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const NVAR::Mat<double> train_labels{ train_data(
         Eigen::seq( ( k - 1 ) * s, Eigen::last ), Eigen::seq( 3, 4 ) ) };
 
+
     const auto              test_data{ test_csv.atv<double>( 0, 0 ) };
     const NVAR::Mat<double> test_warmup{ test_data(
         Eigen::seqN( ( k - 1 ) * s, k * s - ( s - 1 ), -1 ),
         Eigen::seq( 1, 2 ) ) };
     const NVAR::Mat<double> test_samples{ test_data(
-        Eigen::seq( s * ( k - 1 ) + 2, /* n - 1 */ Eigen::last - 1 ),
+        Eigen::seq( s * ( k - 1 ) + 2, Eigen::last - 1 ),
         Eigen::seq( 1, 2 ) ) };
     const NVAR::Mat<double> test_labels{ test_data(
-        Eigen::seq( s * ( k - 1 ) + 3, /* n */
-                    Eigen::last ),
-        Eigen::seq( 3, 4 ) ) };
+        Eigen::seq( s * ( k - 1 ) + 3, Eigen::last ), Eigen::seq( 3, 4 ) ) };
 
     std::cout << "Training NVAR.\n";
     NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
-        train_samples, train_labels, d, k, s, p, 00, true, double{ 0.1 } );
+        train_samples, train_labels, d, k, s, p, 1E-5, true, double{ 0.1 } );
 
 
     std::cout << "Forecasting.\n";
@@ -179,8 +182,49 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     NVAR::SimpleCSV::write<double>( doublescroll_forecast_path,
                                     doublescroll_forecast, col_titles );
 #elifdef HH_MODEL
-    std::cout << std::format( "argc: {}\n", argc );
-    for ( int i{ 0 }; i < argc; ++i ) { std::cout << argv[i] << std::endl; }
+    const auto base_path{ std::filesystem::absolute(
+        std::filesystem::current_path() / ".." ) };
+
+    const std::vector<std::string> files{ "a1t01", "a3t05", "a7t10", "a8t18" };
+
+    for ( const auto & file : files ) {
+        const auto python_file = base_path / "data" / "decompress_signal.py";
+        const auto read_path = base_path / "data" / "hh_data" / file;
+        const auto write_path = base_path / "tmp" / ( file + ".csv" );
+
+        std::cout << "Reading from: " << read_path << std::endl;
+        std::cout << "Writing to: " << write_path << std::endl;
+
+        const std::string decompress_cmd{ std::format(
+            "python3.11 {} {} {}", python_file.string(), read_path.string(),
+            write_path.string() ) };
+        const auto [decompress_result_code, decompress_msg] =
+            exec( decompress_cmd.c_str() );
+
+        std::cout << std::format( "{}:\nResult code: {}\nMessage:\n{}\n", file,
+                                  decompress_result_code, decompress_msg );
+
+        if ( decompress_result_code == 0 /* Success code */ ) {
+            // Create training data
+            // Create warmup
+            // Create test data
+            // Train NVAR
+            // Forecast forwards
+            // Write result file
+            // Delete decompressed file
+            // const std::string remove_cmd{ std::format( "rm {}",
+            //                                           write_path.string() )
+            //                                           };
+            // const auto [result_code, rm_std_output] =
+            //    exec( remove_cmd.c_str() );
+            // if ( result_code != 0 ) {
+            //    std::cout << "Failed to remove decompressed file." <<
+            //    std::endl; std::cout << "Message:\n" << rm_std_output << "\n";
+            //    break;
+            //}
+            // std::cout << "Message:\n" << rm_std_output << "\n";
+        }
+    }
 #endif
     return 0;
 }
