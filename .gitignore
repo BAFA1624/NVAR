@@ -321,3 +321,6 @@ fabric.properties
 # Preventing git from capturing built executables
 */debug/*
 */release/*
+
+# Preventing large datafiles from being uploaded
+data/hh_data/
