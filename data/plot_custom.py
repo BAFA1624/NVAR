@@ -5,6 +5,7 @@ import os
 data_stride = 3
 data_dir = os.path.dirname(os.path.abspath(__file__))
 
+
 # Load reconstruction data
 reconstruction_data = {}
 reconstruction_filename = os.path.abspath(
@@ -86,5 +87,6 @@ for (fkey, lkey, (ax1, ax2)) in zip(forecast_keys, label_keys, axs):
     ax2.set_ylim(ax2_min, ax2_max)
     ax2.set_title(f"Forecast: {fkey}")
     ax2.legend()
+
 
 plt.show()

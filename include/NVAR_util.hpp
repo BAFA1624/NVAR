@@ -12,6 +12,7 @@
 #include <iostream>
 #include <map>
 #include <regex>
+#include <tuple>
 
 namespace NVAR
 {
@@ -282,5 +283,86 @@ get_filename( const std::map<std::string, Index> & file_params );
 
 // std::filesystem::path
 // get_metadata_filename( const std::map<char, Index> & hyperparams ) {}
+
+using FeatureVecShape = std::vector<std::tuple<Index, Index>>;
+
+template <Weight T>
+std::tuple<Mat<T>, Mat<T>>
+train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+             const Index k, const Index s, const Index stride = 1 ) {
+    Mat<T> data{ raw_data( Eigen::seq( Eigen::fix<0>, Eigen::last, stride ),
+                           Eigen::all ) };
+
+    const Index max_delay{ std::ranges::max( shape
+                                             | std::views::elements<1> ) };
+    const Index d{ static_cast<Index>( shape.size() ) },
+        n{ data.rows() - max_delay };
+
+    Mat<T> train_samples( n, d ), train_labels( n - s * ( k - 1 ), d );
+
+    std::cout << std::format(
+        "train_samples: ({}, {}), train_labels: ({}, {})\n", n, d,
+        n - s * ( k - 1 ), d );
+
+    std::cout << std::format( "DEBUG (train_split): max_delay = {}\n",
+                              max_delay );
+
+    for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
+        const auto [data_col, delay] = feature_data;
+        std::cout << "data_col: " << data_col << ", delay: " << delay
+                  << std::endl;
+        std::cout << "start idx: " << max_delay - delay
+                  << ", end idx: " << data.rows() - 1 - delay - 1 << ", range: "
+                  << ( data.rows() - 1 - delay - 1 ) - ( max_delay - delay )
+                  << std::endl;
+        std::cout << "Setting samples " << i << std::endl;
+        const auto tmp =
+            data( Eigen::seq( max_delay - delay, Eigen::last - delay - 1 ),
+                  data_col );
+        std::cout << std::format( "({}, {})\n", tmp.rows(), tmp.cols() )
+                  << std::endl;
+        train_samples.col( i ) =
+            data( Eigen::seq( max_delay - delay, Eigen::last - delay - 1 ),
+                  data_col );
+        std::cout << "Done.\nSetting labels " << i << std::endl;
+        train_labels.col( i ) =
+            data( Eigen::seq( s * ( k - 1 ) + max_delay - delay + 1,
+                              Eigen::last - delay ),
+                  data_col );
+        std::cout << "Done." << std::endl;
+    }
+
+    return std::tuple{ train_samples, train_labels };
+}
+
+template <Weight T>
+std::tuple<Mat<T>, Mat<T>>
+test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+            const Index k, const Index s, const Index stride = 1 ) {
+    Mat<T> data{ raw_data( Eigen::seq( Eigen::fix<0>, Eigen::last, stride ),
+                           Eigen::all ) };
+
+    const Index d{ static_cast<Index>( shape.size() ) },
+        n{ data.rows() - s * ( k - 1 ) };
+    const Index warmup_sz{ s * ( k - 1 ) }, test_sz{ n - warmup_sz };
+
+    Mat<T> test_warmup( warmup_sz, d ), test_labels( test_sz, d );
+
+    const Index max_delay{ std::ranges::max( shape
+                                             | std::views::elements<0> ) };
+
+    for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
+        const auto [data_col, delay] = feature_data;
+
+        test_warmup.col( i ) = data(
+            Eigen::seq( max_delay - delay, Eigen::last - delay ), data_col );
+        test_labels.col( i ) =
+            data( Eigen::seq( s * ( k - 1 ) + 1 + max_delay - delay,
+                              Eigen::last - delay ),
+                  data_col );
+    }
+
+    return std::tuple{ test_warmup, test_labels };
+}
 
 } // namespace NVAR

@@ -9,8 +9,8 @@
 #include <vector>
 
 // #define TARGET_DIFFERENCE
-//  #define ALT_RIDGE
-//  #define WRITE_FEATURES 10
+// #define ALT_RIDGE
+// #define WRITE_FEATURES 10
 
 namespace NVAR
 {
@@ -227,6 +227,14 @@ class NVAR_runtime
         m_n_linear_feat( d * k ),
         m_n_nonlinear_feat( def_nonlinear_size<Nonlin>( d, k, p ) ),
         m_n_total_feat( def_total_size<Nonlin>( d, k, p, use_constant ) ) {
+        if ( labels.rows() != m_n_training_inst ) {
+            std::cerr << std::format(
+                "The number of training labels ({}) must equal the number of "
+                "training samples ({}), given the values of d ({}), k ({}), & "
+                "s ({}).\n",
+                labels.rows(), m_n_training_inst, m_d, m_k, m_s );
+            exit( 1 );
+        }
         // std::cout << "Constructing linear features.\n";
         const Mat<T> linear_features{ construct_linear_vec( samples ) };
         // std::cout << linear_features.leftCols( 10 ) << "\n";
@@ -238,17 +246,21 @@ class NVAR_runtime
         const Mat<T> total_features{ construct_total_vec(
             linear_features, nonlinear_features ) };
         // std::cout << total_features.leftCols( 10 ) << "\n";
-        std::cout << "Performing ridge regression.\n";
+        // std::cout << "Performing ridge regression.\n";
         m_w_out = ridge_regress( samples, labels, total_features );
-        // m_w_out = m_w_out.unaryExpr( []( const T x ) {
-        //     return ( std::abs( x ) < 0.01 && x * -1 > 0 ) ? 0 : x;
-        // } );
-        std::cout << "m_w_out:\n" << m_w_out.transpose() << "\n";
+        std::cout << "m_w_out:\n" << m_w_out.transpose() << std::endl;
 
-#ifndef DOUBLESCROLL
+#ifdef FORECAST
         const std::filesystem::path    path{ "../data/forecast_data/tmp.csv" };
-        const std::vector<std::string> col_titles{ "I", "V" };
-#else
+        const std::vector<std::string> col_titles{ "I", "V", "I'", "V'" };
+#endif
+#ifdef CUSTOM_FEATURES
+        const std::filesystem::path    path{ "../data/forecast_data/tmp.csv" };
+        const std::vector<std::string> col_titles{ "V_(n)",    "V_(n-1)",
+                                                   "I_(n)",    "V_(n)'",
+                                                   "V_(n-1)'", "I_(n)'" };
+#endif
+#ifdef DOUBLESCROLL
         const std::filesystem::path path{
             "../data/forecast_data/doublescroll_reconstruct.csv"
         };
@@ -274,7 +286,10 @@ class NVAR_runtime
 #endif
         std::cout << std::format( "reproduced: ({}, {})\n", reproduced.rows(),
                                   reproduced.cols() );
-        SimpleCSV::write<T>( path, reproduced, col_titles );
+
+        Mat<T> reconstructed( reproduced.rows(), reproduced.cols() * 2 );
+        reconstructed << reproduced, labels;
+        SimpleCSV::write<T>( path, reconstructed, col_titles );
     }
 
     [[nodiscard]] constexpr inline auto w_out() const noexcept {
@@ -340,8 +355,8 @@ NVAR_runtime<T, Nonlin>::construct_total_vec(
     Mat<T> total_features{ Mat<T>::Zero( m_n_total_feat, m_n_training_inst ) };
     if ( m_use_constant ) {
         for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
-            total_features.col( i ) << m_c, linear_features.col( i ),
-                nonlinear_features.col( i );
+            total_features.col( i ) << linear_features.col( i ),
+                nonlinear_features.col( i ), m_c;
         }
     }
     else {
@@ -387,6 +402,12 @@ NVAR_runtime<T, Nonlin>::ridge_regress(
     std::cout << "tikhonov_matrix det: " << tikhonov_matrix.determinant()
               << std::endl;
 
+    std::cout << std::format( "feature_vec: ({}, {})\n",
+                              feature_vec_product.rows(),
+                              feature_vec_product.cols() );
+    std::cout << std::format( "tikhonov_matrix: ({}, {})\n",
+                              tikhonov_matrix.rows(), tikhonov_matrix.cols() );
+
     // L2 regularization adapts linear regression to ill-posed problems
     const auto sum{ feature_vec_product + tikhonov_matrix };
     const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
@@ -401,6 +422,10 @@ NVAR_runtime<T, Nonlin>::ridge_regress(
     std::cout << std::format( "result: ({}, {})\n", result.rows(),
                               result.cols() );
 #else
+    std::cout << std::format(
+        "labels: ({}, {}), factor: ({}, {}), total_feature_vec: ({}, {})\n",
+        labels.rows(), labels.cols(), factor.rows(), factor.cols(),
+        total_feature_vec.rows(), total_feature_vec.cols() );
     const auto result{ labels.transpose()
                        * ( factor * total_feature_vec ).transpose() };
 #endif
@@ -435,7 +460,7 @@ NVAR_runtime<T, Nonlin>::forecast(
         Vec<T> total_feat{ Vec<T>::Zero(
             def_total_size<Nonlin>( m_d, m_k, m_p, m_use_constant ) ) };
         if ( m_use_constant ) {
-            total_feat << m_c, lin_feat, nonlin_feat;
+            total_feat << lin_feat, nonlin_feat, m_c;
         }
         else {
             total_feat << lin_feat, nonlin_feat;
