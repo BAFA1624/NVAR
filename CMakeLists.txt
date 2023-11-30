@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
-set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Werror -DNDEBUG -march=native -Wno-error=class-memaccess -Wall -Wextra -pedantic  -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Werror -DNDEBUG -march=native -Wno-error=class-memaccess -Wall -Wextra -pedantic -O3")
 
 option(JSON_ImplicitConversions OFF)
 
@@ -52,6 +52,11 @@ add_custom_target(
 	COMMENT "Running forecast with the TARGET_DIFFERENCE"
 )
 add_custom_command(
+	TARGET main_difference POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+add_custom_command(
 	TARGET forecast_difference POST_BUILD
 	COMMAND python3.11 ./plot_forecast.py
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
@@ -66,6 +71,11 @@ add_custom_target(
 	COMMAND double_scroll
 	DEPENDS double_scroll
 	COMMENT "Running doublescroll."
+)
+add_custom_command(
+	TARGET double_scroll POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
 )
 add_custom_command(
 	TARGET double_scroll PRE_BUILD
@@ -92,10 +102,36 @@ add_custom_target(
 	COMMENT "Fitting Hodgkin-Huxley model."
 )
 add_custom_command(
+	TARGET hhmodel POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+add_custom_command(
 	TARGET hh_model POST_BUILD
 	COMMAND python3.11 ./plot_hh_model.py
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
 	COMMENT "Plotting Hodgkin-Huxley model."
+)
+
+# Custom features target
+add_executable(customfeat src/main.cpp src/NVAR_util.cpp)
+target_compile_definitions(customfeat PUBLIC CUSTOM_FEATURES)
+add_custom_target(
+	custom_feat
+	COMMAND customfeat
+	DEPENDS customfeat
+	COMMENT "Fitting custom features."
+)
+add_custom_command(
+	TARGET customfeat POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+add_custom_command(
+	TARGET custom_feat POST_BUILD
+	COMMAND python3.11 ./plot_custom.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+	COMMENT "Plotting custom features."
 )
 
 # Testing target stuff
@@ -114,5 +150,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	target_link_libraries(main_difference d_classic)
 	target_link_libraries(double_scroll d_classic)
 	target_link_libraries(hhmodel d_classic)
+	target_link_libraries(customfeat d_classic)
 	target_link_libraries(unit_test d_classic)
 endif()
