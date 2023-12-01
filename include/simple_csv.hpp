@@ -239,7 +239,8 @@ SimpleCSV::atv( const Index row_offset,
             for ( Index col{ 0 }; col < C; ++col ) {
                 for ( Index row{ 0 }; row < R; ++row ) {
                     result( row, col ) =
-                        m_data[col_offset + col][row_offset + row];
+                        m_data[static_cast<std::size_t>( col_offset + col )]
+                              [static_cast<std::size_t>( row_offset + row )];
                 }
             }
             return result;
@@ -249,7 +250,8 @@ SimpleCSV::atv( const Index row_offset,
             for ( Index col{ 0 }; col < m_cols; ++col ) {
                 for ( Index row{ 0 }; row < m_rows; ++row ) {
                     result( row, col ) =
-                        m_data[col_offset + col][row_offset + row];
+                        m_data[static_cast<std::size_t>( col_offset + col )]
+                              [static_cast<std::size_t>( row_offset + row )];
                 }
             }
             return result;
