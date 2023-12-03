@@ -103,6 +103,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                               shape_str<double, -1, -1>( test_warmup ),
                               shape_str<double, -1, -1>( test_labels ) );
 
+    std::cout << std::format( "Eigen3 vesion: {}.{}.{}\n", EIGEN_WORLD_VERSION,
+                              EIGEN_MAJOR_VERSION, EIGEN_MINOR_VERSION );
+
     #undef FORECAST
 #endif
 #ifdef FORECAST

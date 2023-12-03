@@ -14,7 +14,9 @@ if __name__ == "__main__":
     # parse arguments from commandline args
     readpath = os.path.abspath(sys.argv[1])
     writepath = os.path.abspath(sys.argv[2])
-    print(f"Decompressing {os.path.basename(readpath)} -> {os.path.basename(writepath)}.")
+    print(
+        f"Decompressing {os.path.basename(readpath)} -> {os.path.basename(writepath)}."
+    )
 
     # Load the record
     print("Loading record.")

@@ -29,7 +29,9 @@ with open(filename, "r") as file:
     test_data = {title: np.array(vals) for title, vals in test_data.items()}
 
 reconstruct_data = {}
-filename = os.path.abspath(os.path.join(os.getcwd(), "forecast_data", "doublescroll_reconstruct.csv"))
+filename = os.path.abspath(
+    os.path.join(os.getcwd(), "forecast_data", "doublescroll_reconstruct.csv")
+)
 with open(filename, "r") as file:
     lines = list(file.readlines())
     col_titles = [s.strip() for s in lines[0].split(",")]
@@ -62,13 +64,13 @@ n_test = len(forecast_data[list(forecast_data.keys())[0]])
 fig = plt.figure(figsize=(8, 8))
 
 # Left column: Reconstructed training data
-ax1 = fig.add_subplot(321) # v1
-ax3 = fig.add_subplot(323) # v2
-ax5 = fig.add_subplot(325) # I
+ax1 = fig.add_subplot(321)  # v1
+ax3 = fig.add_subplot(323)  # v2
+ax5 = fig.add_subplot(325)  # I
 # Right column: Forecast data
-ax2 = fig.add_subplot(322) # v1
-ax4 = fig.add_subplot(324) # v2
-ax6 = fig.add_subplot(326) # I
+ax2 = fig.add_subplot(322)  # v1
+ax4 = fig.add_subplot(324)  # v2
+ax6 = fig.add_subplot(326)  # I
 
 ax1.set_title("Reconstructed training data\nV1")
 ax1.plot(train_data["t"][-n_train:], reconstruct_data["v1"], label="reconstructed_v1")

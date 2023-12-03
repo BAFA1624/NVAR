@@ -8,9 +8,7 @@ import numpy as np
 show_plots = False
 
 
-def plot_data(
-    splits, xmin=None, xmax=None, show=True, filename=None, savefig=False
-):
+def plot_data(splits, xmin=None, xmax=None, show=True, filename=None, savefig=False):
     for i in splits:
         plt.plot(
             splits[i]["train"]["X"][:, 0],
@@ -269,7 +267,9 @@ for j, file in enumerate(files):
         xmin=measured_min,
         xmax=measured_max,
         show=True,
-        filename=get_filename(N, 0, None, len(measured_data["t"]), 0, 0, cv_args[0], "png"),
+        filename=get_filename(
+            N, 0, None, len(measured_data["t"]), 0, 0, cv_args[0], "png"
+        ),
         savefig=True,
     )
     integrated_min = min(integrated_data["t"])
@@ -279,7 +279,9 @@ for j, file in enumerate(files):
         xmin=integrated_min,
         xmax=integrated_max,
         show=True,
-        filename=get_filename(N, 0, None, len(integrated_data["t"]), 1, 0, cv_args[0], "png"),
+        filename=get_filename(
+            N, 0, None, len(integrated_data["t"]), 1, 0, cv_args[0], "png"
+        ),
         savefig=True,
     )
 
@@ -303,10 +305,10 @@ for j, file in enumerate(files):
         )
 
 # Fixed time step integrated data:
-#file_nos = [31]
-#cv = simple_split
-#cv_args = [1, 0.1]
-#for j, file in enumerate(file_nos):
+# file_nos = [31]
+# cv = simple_split
+# cv_args = [1, 0.1]
+# for j, file in enumerate(file_nos):
 #    match = pattern.match(file)
 #    if not match:
 #        continue

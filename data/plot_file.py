@@ -53,15 +53,9 @@ def get_filenames(data):
         for i in range(length)
     ]
     current_dir = os.getcwd()
-    directory_map = {
-        0: "train_data",
-        1: "test_data",
-        2: "forecast_data"
-    }
+    directory_map = {0: "train_data", 1: "test_data", 2: "forecast_data"}
     data["filenames"] = [
-        os.path.join(
-            current_dir, directory_map[train_test], file
-        )
+        os.path.join(current_dir, directory_map[train_test], file)
         for train_test, file in zip(data["train_test"], files)
     ]
     return data
@@ -80,9 +74,12 @@ file_params = {
     "skipheader": [1, 1, 1, 1],
     "xkey": ["t", "t", "t", "t"],
     "ykeys": [
-        #["I", "V", "I'", "V'"],
-        #["I", "V", "I'", "V'"],
-        ["V"], ["V"], ["V"], ["V"]
+        # ["I", "V", "I'", "V'"],
+        # ["I", "V", "I'", "V'"],
+        ["V"],
+        ["V"],
+        ["V"],
+        ["V"],
     ],
     "prepend_labels": ["train_1", "test_1", "train_2", "test_2"],
 }
