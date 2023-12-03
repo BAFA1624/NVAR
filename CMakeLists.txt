@@ -3,7 +3,12 @@ cmake_minimum_required(VERSION 3.7)
 project(NVAR_test)
 include(CTest)
 
-set(CMAKE_CXX_COMPILER /opt/homebrew/bin/g++-13)
+
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+	set(CMAKE_CXX_COMPILER /opt/homebrew/bin/g++-13)
+else()
+	set(CMAKE_CXX_COMPILER g++)
+endif()
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
