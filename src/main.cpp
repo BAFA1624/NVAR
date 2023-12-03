@@ -1,15 +1,15 @@
 #include "Eigen/Dense"
 #include "NVAR.hpp"
-#include "nlohmann/json.hpp"
+// #include "nlohmann/json.hpp"
 #include "simple_csv.hpp"
 
 #include <array>  //exec
 #include <cstdio> // exec
 #include <format>
 #include <iostream>
-#include <memory>    // exec
-#include <stdexcept> // exec
-#include <string>    // exec
+#include <memory> // exec
+// #include <stdexcept> // exec
+#include <string> // exec
 #include <tuple>
 
 #define TEST
@@ -145,18 +145,19 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Getting training samples.\n";
     const auto              train_data_pool{ train_csv.atv<double>( 0, 0 ) };
     const NVAR::Mat<double> train_data{ train_data_pool(
-        Eigen::seq( 0, Eigen::last, data_stride ), Eigen::all ) };
+        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
+        Eigen::placeholders::all ) };
     std::cout << "Training keys:\n";
     int i{ 0 };
     for ( const auto & key : train_csv.col_titles() ) {
         std::cout << "\t" << i++ << ": " << key << "\n";
     }
     const NVAR::Mat<double> train_samples_0{ train_data(
-        Eigen::seq( 0, Eigen::last - 1 ), 1 ) };
+        Eigen::seq( 0, Eigen::placeholders::last - 1 ), 1 ) };
     std::cout << "train_samples_0, should be current i: "
               << train_samples_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_samples_1{ train_data(
-        Eigen::seq( 0, Eigen::last - 1 ), 2 ) };
+        Eigen::seq( 0, Eigen::placeholders::last - 1 ), 2 ) };
     std::cout << "train_samples_1, should be voltage i: "
               << train_samples_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     if ( train_samples_0.rows() != train_samples_1.rows() ) {
@@ -171,11 +172,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     // Get training labels
     std::cout << "Getting training labels.\n";
     const NVAR::Mat<double> train_labels_0{ train_data(
-        Eigen::seq( 1, Eigen::last ), 1 ) };
+        Eigen::seq( 1, Eigen::placeholders::last ), 1 ) };
     std::cout << "train_labels_0, should be current i: "
               << train_labels_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_labels_1{ train_data(
-        Eigen::seq( 1, Eigen::last ), 2 ) };
+        Eigen::seq( 1, Eigen::placeholders::last ), 2 ) };
     std::cout << "train_labels_1, should be voltage i - 1: "
               << train_labels_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     if ( train_labels_0.rows() != train_labels_1.rows() ) {
@@ -191,10 +192,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Getting testing samples.\n";
     const auto              test_data_pool{ test_csv.atv<double>( 0, 0 ) };
     const NVAR::Mat<double> test_data{ test_data_pool(
-        Eigen::seq( 0, Eigen::last, data_stride ), Eigen::all ) };
-    const NVAR::Mat<double> test_times{ test_data( Eigen::all, 0 ) };
-    const NVAR::Mat<double> test_0{ test_data( Eigen::all, 1 ) };
-    const NVAR::Mat<double> test_1{ test_data( Eigen::all, 2 ) };
+        Eigen::seq( 0, Eigen::placeholders::last, data_stride ), Eigen::all ) };
+    const NVAR::Mat<double> test_times{ test_data( Eigen::placeholders::all,
+                                                   0 ) };
+    const NVAR::Mat<double> test_0{ test_data( Eigen::placeholders::all, 1 ) };
+    const NVAR::Mat<double> test_1{ test_data( Eigen::placeholders::all, 2 ) };
     if ( test_0.rows() != test_1.rows() ) {
         std::cout << std::format( "Mismatched column lengths: {}, {}\n",
                                   test_0.rows(), test_1.rows() );
@@ -204,11 +206,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     test_sample_pool << test_0, test_1;
 
     const NVAR::Mat<double> test_warmup{ test_sample_pool(
-        Eigen::seqN( 0, s * ( k - 1 ) + 1 ), Eigen::all ) };
+        Eigen::seqN( 0, s * ( k - 1 ) + 1 ), Eigen::placeholders::all ) };
     const NVAR::Mat<double> test_labels{ test_sample_pool(
-        Eigen::seq( s * ( k - 1 ) + 2, Eigen::last ), Eigen::all ) };
+        Eigen::seq( s * ( k - 1 ) + 2, Eigen::placeholders::last ),
+        Eigen::placeholders::all ) };
     const NVAR::Mat<double> test_label_times{ test_times(
-        Eigen::seq( s * ( k - 1 ) + 2, Eigen::last ), 0 ) };
+        Eigen::seq( s * ( k - 1 ) + 2, Eigen::placeholders::last ), 0 ) };
 
     std::cout << "Training NVAR.\n";
     NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
@@ -278,22 +281,23 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Getting training samples.\n";
     const auto              train_data_pool{ train_csv.atv<double>( 0, 0 ) };
     const NVAR::Mat<double> train_data{ train_data_pool(
-        Eigen::seq( 0, Eigen::last, data_stride ), Eigen::all ) };
+        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
+        Eigen::placeholders::all ) };
     std::cout << "Training keys:\n";
     int i{ 0 };
     for ( const auto & key : train_csv.col_titles() ) {
         std::cout << "\t" << i++ << ": " << key << "\n";
     }
     const NVAR::Mat<double> train_samples_0{ train_data(
-        Eigen::seq( delay, Eigen::last - 1 ), 2 ) };
+        Eigen::seq( delay, Eigen::placeholders::last - 1 ), 2 ) };
     std::cout << "train_samples_0, should be voltage i: "
               << train_samples_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_samples_1{ train_data(
-        Eigen::seq( 0, Eigen::last - delay - 1 ), 2 ) };
+        Eigen::seq( 0, Eigen::placeholders::last - delay - 1 ), 2 ) };
     std::cout << "train_samples_1, should be voltage i - 1: "
               << train_samples_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_samples_2{ train_data(
-        Eigen::seq( delay, Eigen::last - 1 ), 1 ) };
+        Eigen::seq( delay, Eigen::placeholders::last - 1 ), 1 ) };
     std::cout << "train_samples_2, should be current i: "
               << train_samples_2( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     if ( train_samples_0.rows() != train_samples_1.rows()
@@ -310,15 +314,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     // Get training labels
     std::cout << "Getting training labels.\n";
     const NVAR::Mat<double> train_labels_0{ train_data(
-        Eigen::seq( delay + 1, Eigen::last ), 2 ) };
+        Eigen::seq( delay + 1, Eigen::placeholders::last ), 2 ) };
     std::cout << "train_labels_0, should be voltage i: "
               << train_labels_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_labels_1{ train_data(
-        Eigen::seq( 1, Eigen::last - delay ), 2 ) };
+        Eigen::seq( 1, Eigen::placeholders::last - delay ), 2 ) };
     std::cout << "train_labels_1, should be voltage i - 1: "
               << train_labels_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     const NVAR::Mat<double> train_labels_2{ train_data(
-        Eigen::seq( delay + 1, Eigen::last ), 1 ) };
+        Eigen::seq( delay + 1, Eigen::placeholders::last ), 1 ) };
     std::cout << "train_labels_2, should be current i: "
               << train_labels_2( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
     if ( train_labels_0.rows() != train_labels_1.rows()
@@ -336,15 +340,16 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Getting testing samples.\n";
     const auto              test_data_pool{ test_csv.atv<double>( 0, 0 ) };
     const NVAR::Mat<double> test_data{ test_data_pool(
-        Eigen::seq( 0, Eigen::last, data_stride ), Eigen::all ) };
+        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
+        Eigen::placeholders::all ) };
     const NVAR::Mat<double> test_times{ test_data(
-        Eigen::seq( delay, Eigen::last ), 0 ) };
-    const NVAR::Mat<double> test_0{ test_data( Eigen::seq( delay, Eigen::last ),
-                                               2 ) };
+        Eigen::seq( delay, Eigen::placeholders::last ), 0 ) };
+    const NVAR::Mat<double> test_0{ test_data(
+        Eigen::seq( delay, Eigen::placeholders::last ), 2 ) };
     const NVAR::Mat<double> test_1{ test_data(
-        Eigen::seq( 0, Eigen::last - delay ), 2 ) };
-    const NVAR::Mat<double> test_2{ test_data( Eigen::seq( delay, Eigen::last ),
-                                               1 ) };
+        Eigen::seq( 0, Eigen::placeholders::last - delay ), 2 ) };
+    const NVAR::Mat<double> test_2{ test_data(
+        Eigen::seq( delay, Eigen::placeholders::last ), 1 ) };
     if ( test_0.rows() != test_1.rows() || test_1.rows() != test_2.rows() ) {
         std::cout << std::format( "Mismatched column lengths: {}, {}, {}\n",
                                   test_0.rows(), test_1.rows(), test_2.rows() );
@@ -354,11 +359,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     test_sample_pool << test_0, test_1, test_2;
 
     const NVAR::Mat<double> test_warmup{ test_sample_pool(
-        Eigen::seqN( 0, s * ( k - 1 ) ), Eigen::all ) };
+        Eigen::seqN( 0, s * ( k - 1 ) ), Eigen::placeholders::all ) };
     const NVAR::Mat<double> test_labels{ test_sample_pool(
-        Eigen::seq( s * ( k - 1 ) + 1, Eigen::last ), Eigen::all ) };
+        Eigen::seq( s * ( k - 1 ) + 1, Eigen::placeholderslast ),
+        Eigen::placeholders::all ) };
     const NVAR::Mat<double> test_label_times{ test_times(
-        Eigen::seq( s * ( k - 1 ) + 1, Eigen::last ), 0 ) };
+        Eigen::seq( s * ( k - 1 ) + 1, Eigen::placeholders::last ), 0 ) };
 
     // Building NVAR
     std::cout << "Building NVAR.\n";
@@ -425,9 +431,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     // Split training samples & labels
     const auto doublescroll_train_samples{ doublescroll_train_data(
-        Eigen::seq( 0, Eigen::last - 1 ), Eigen::seq( 1, 3 ) ) };
+        Eigen::seq( 0, Eigen::placeholders::last - 1 ), Eigen::seq( 1, 3 ) ) };
     const auto doublescroll_train_labels{ doublescroll_train_data(
-        Eigen::seq( ( k2 - 1 ) * s2 + 1, Eigen::last ), Eigen::seq( 1, 3 ) ) };
+        Eigen::seq( ( k2 - 1 ) * s2 + 1, Eigen::placeholders::last ),
+        Eigen::seq( 1, 3 ) ) };
 
     // Pick out warmup from testing set
     const auto doublescroll_warmup{ doublescroll_test_data(
@@ -435,9 +442,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     // Split testing samples & labels
     const auto doublescroll_test_samples{ doublescroll_test_data(
-        Eigen::seq( n_warmup + 1, Eigen::last - 1 ), Eigen::seq( 1, 3 ) ) };
+        Eigen::seq( n_warmup + 1, Eigen::placeholders::last - 1 ),
+        Eigen::seq( 1, 3 ) ) };
     const auto doublescroll_test_labels{ doublescroll_test_data(
-        Eigen::seq( n_warmup + 2, Eigen::last ), Eigen::seq( 1, 3 ) ) };
+        Eigen::seq( n_warmup + 2, Eigen::placeholders::last ),
+        Eigen::seq( 1, 3 ) ) };
 
     // Create NVAR model
     NVAR::NVAR_runtime<double> doublescroll_test(
@@ -481,6 +490,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                   decompress_result_code, decompress_msg );
 
         if ( decompress_result_code == 0 /* Success code */ ) {
+            std::cout << "Successful decompress" << std::endl;
             // Create training data
             // Create warmup
             // Create test data

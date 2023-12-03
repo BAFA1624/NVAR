@@ -1,16 +1,17 @@
 #pragma once
 
-#include "Eigen/Dense"
-#include "Eigen/src/Core/DenseStorage.h"
-#include "nlohmann/json.hpp"
+#include "Eigen/Core"
+// #include "nlohmann/json.hpp"
 
-#include <algorithm>
+// #include <algorithm>
+#include <cassert>
 #include <complex>
-#include <concepts>
+// #include <concepts>
 #include <filesystem>
 #include <format>
 #include <iostream>
 #include <map>
+#include <ranges>
 #include <regex>
 #include <tuple>
 
@@ -55,6 +56,12 @@ template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using RefMat = Eigen::Ref<Mat<T, R, C>>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using ConstRefMat = Eigen::Ref<const Mat<T, R, C>>;
+
+template <typename T, NVAR::Index R = -1, NVAR::Index C = -1>
+std::string
+mat_shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
+    return std::format( "({}, {})", m.rows(), m.cols() );
+}
 
 // Nonlinearity types
 enum class nonlinear_t { poly, exp, polyexp };
@@ -171,7 +178,9 @@ combinations_with_replacement( const ConstRefVec<T, d * k> v ) {
 
         // Find rightmost index to increment
         auto j = p - 1;
-        while ( j >= 0 && indices[j] == n - 1 ) { j--; }
+        while ( j >= 0 && indices[static_cast<std::size_t>( j )] == n - 1 ) {
+            j--;
+        }
 
         // If no index found, break out
         if ( j < 0 ) {
@@ -179,8 +188,11 @@ combinations_with_replacement( const ConstRefVec<T, d * k> v ) {
         }
 
         // Increment found index & adjust subsequent
-        indices[j]++;
-        for ( Index i{ j + 1 }; i < k; ++i ) { indices[i] = indices[i - 1]; }
+        indices[static_cast<std::size_t>( j )]++;
+        for ( Index i{ j + 1 }; i < k; ++i ) {
+            indices[static_cast<std::size_t>( i )] =
+                indices[static_cast<std::size_t>( i - 1 )];
+        }
     }
 
     return result;
@@ -197,7 +209,7 @@ combinations_with_replacement( const ConstRefVec<T> v, const Index d,
     const Index n{ d * k };
     Index       count{ 0 };
 
-    std::vector<Index> indices( p, 0 );
+    std::vector<Index> indices( static_cast<std::size_t>( p ), 0 );
     Vec<T>             result{ Vec<T>::Ones(
         def_nonlinear_size<nonlinear_t::poly>( d, k, p ) ) };
 
@@ -208,7 +220,9 @@ combinations_with_replacement( const ConstRefVec<T> v, const Index d,
 
         // Find rightmost index to increment
         auto j = p - 1;
-        while ( j >= 0 && indices[j] == n - 1 ) { j--; }
+        while ( j >= 0 && indices[static_cast<std::size_t>( j )] == n - 1 ) {
+            j--;
+        }
 
         // If no index found, break out
         if ( j < 0 ) {
@@ -245,7 +259,7 @@ construct_x_i( const ConstRefMat<T, N, d> inputs, const Index i ) {
     assert( i + ( k - 1 ) * s < N );
     return inputs( Eigen::seqN( i + ( k - 1 ) * s, Eigen::fix<k>,
                                 Eigen::fix<-s>() ),
-                   Eigen::all )
+                   Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
 template <Weight T>
@@ -253,14 +267,16 @@ constexpr inline Vec<T>
 construct_x_i( const ConstRefMat<T> inputs, const Index i, const Index k,
                const Index s ) {
     assert( i + ( k - 1 ) * s < inputs.rows() );
-    return inputs( Eigen::seqN( i + ( k - 1 ) * s, k, -s ), Eigen::all )
+    return inputs( Eigen::seqN( i + ( k - 1 ) * s, k, -s ),
+                   Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
 template <Weight T>
 constexpr inline Vec<T>
 construct_x_i( const ConstRefMat<T> input, const Index k, const Index s ) {
     assert( input.rows() == s * ( k - 1 ) + 1 );
-    return input( Eigen::seqN( s * ( k - 1 ), k, -s ), Eigen::all )
+    return input( Eigen::seqN( s * ( k - 1 ), k, -s ),
+                  Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
 template <Weight T>
@@ -288,79 +304,151 @@ using FeatureVecShape = std::vector<std::tuple<Index, Index>>;
 
 template <Weight T>
 std::tuple<Mat<T>, Mat<T>>
-train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
              const Index k, const Index s, const Index stride = 1 ) {
-    Mat<T> data{ raw_data( Eigen::seq( Eigen::fix<0>, Eigen::last, stride ),
-                           Eigen::all ) };
+    Mat<T> data{ raw_data(
+        Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+        Eigen::placeholders::all ) };
 
     const Index max_delay{ std::ranges::max( shape
-                                             | std::views::elements<1> ) };
-    const Index d{ static_cast<Index>( shape.size() ) },
-        n{ data.rows() - max_delay };
-
-    Mat<T> train_samples( n, d ), train_labels( n - s * ( k - 1 ), d );
+                                             | std::views::elements<1> ) },
+        n{ static_cast<Index>( data.rows() ) },
+        d{ static_cast<Index>( shape.size() ) },
+        train_size{ n - max_delay - 1 },
+        label_size{ n - max_delay - 1 - s * ( k - 1 ) },
+        label_offset{ s * ( k - 1 ) };
 
     std::cout << std::format(
-        "train_samples: ({}, {}), train_labels: ({}, {})\n", n, d,
-        n - s * ( k - 1 ), d );
+        "n: {}, d: {}, train_size: {}, label_size: {}, label_offset: {}\n", n,
+        d, train_size, label_size, label_offset );
 
-    std::cout << std::format( "DEBUG (train_split): max_delay = {}\n",
-                              max_delay );
+    Mat<T> train_samples( train_size, d ), train_labels( label_size, d );
+
+    std::cout << std::format( "train_samples: {}, train_labels: {}\n",
+                              mat_shape_str<T, -1, -1>( train_samples ),
+                              mat_shape_str<T, -1, -1>( train_labels ) );
 
     for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
         const auto [data_col, delay] = feature_data;
-        std::cout << "data_col: " << data_col << ", delay: " << delay
-                  << std::endl;
-        std::cout << "start idx: " << max_delay - delay
-                  << ", end idx: " << data.rows() - 1 - delay - 1 << ", range: "
-                  << ( data.rows() - 1 - delay - 1 ) - ( max_delay - delay )
-                  << std::endl;
-        std::cout << "Setting samples " << i << std::endl;
-        const auto tmp =
-            data( Eigen::seq( max_delay - delay, Eigen::last - delay - 1 ),
+        const auto offset{ max_delay - delay };
+        std::cout << std::format( "data_col: {}, delay: {}, offset: {}\n",
+                                  data_col, delay, offset );
+        std::cout << std::format( "Setting samples {}\n", i );
+        std::cout << std::format(
+            "train_samples({}): {}\n", i,
+            mat_shape_str<T, -1, -1>( train_samples.col( i ) ) );
+        std::cout << std::format( "train_samples({}): {} -> {} (range = {})\n",
+                                  i, offset, n - 2 - delay,
+                                  n - 1 - delay - offset );
+
+        const auto tmp1 =
+            data( Eigen::seq( offset, Eigen::placeholders::last - delay - 1 ),
                   data_col );
-        std::cout << std::format( "({}, {})\n", tmp.rows(), tmp.cols() )
-                  << std::endl;
+
+        std::cout << std::format( "tmp1: {}\n",
+                                  mat_shape_str<T, -1, -1>( tmp1 ) );
+
         train_samples.col( i ) =
-            data( Eigen::seq( max_delay - delay, Eigen::last - delay - 1 ),
+            data( Eigen::seq( offset, Eigen::placeholders::last - delay - 1 ),
                   data_col );
-        std::cout << "Done.\nSetting labels " << i << std::endl;
+
+        std::cout << std::format( "Done.\nSetting labels {}\n", i );
+        std::cout << std::format(
+            "train_labels({}): {}\n", i,
+            mat_shape_str<T, -1, -1>( train_labels.col( i ) ) );
+        std::cout << std::format( "train_labels({}): {} -> {} (range = {})\n",
+                                  i, offset + label_offset + 1, n - 1 - delay,
+                                  n - 1 - delay - offset - label_offset );
+
+        const auto tmp2 = data( Eigen::seq( offset + label_offset + 1,
+                                            Eigen::placeholders::last - delay ),
+                                data_col );
+        std::cout << std::format( "tmp2: {}\n",
+                                  mat_shape_str<T, -1, -1>( tmp2 ) );
+
         train_labels.col( i ) =
-            data( Eigen::seq( s * ( k - 1 ) + max_delay - delay + 1,
-                              Eigen::last - delay ),
+            data( Eigen::seq( offset + label_offset + 1,
+                              Eigen::placeholders::last - delay ),
                   data_col );
         std::cout << "Done." << std::endl;
     }
+
+    std::cout << "Finished train_split.\n\n";
 
     return std::tuple{ train_samples, train_labels };
 }
 
 template <Weight T>
 std::tuple<Mat<T>, Mat<T>>
-test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
             const Index k, const Index s, const Index stride = 1 ) {
-    Mat<T> data{ raw_data( Eigen::seq( Eigen::fix<0>, Eigen::last, stride ),
-                           Eigen::all ) };
+    Mat<T> data{ raw_data(
+        Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+        Eigen::placeholders::all ) };
 
-    const Index d{ static_cast<Index>( shape.size() ) },
-        n{ data.rows() - s * ( k - 1 ) };
-    const Index warmup_sz{ s * ( k - 1 ) }, test_sz{ n - warmup_sz };
-
-    Mat<T> test_warmup( warmup_sz, d ), test_labels( test_sz, d );
+    std::cout << std::format( "data: {}", mat_shape_str<T, -1, -1>( data ) );
 
     const Index max_delay{ std::ranges::max( shape
-                                             | std::views::elements<0> ) };
+                                             | std::views::elements<0> ) },
+        d{ static_cast<Index>( shape.size() ) },
+        n{ static_cast<Index>( data.rows() ) }, warmup_offset{ s * ( k - 1 ) },
+        test_sz{ n - max_delay - warmup_offset - 1 };
+
+    std::cout << std::format(
+        "n: {}, d: {}, max_delay: {}, warmup_sz: {}, test_sz: {}\n", n, d,
+        max_delay, warmup_offset + 1, test_sz );
+
+    Mat<T> test_warmup( warmup_offset + 1, d ), test_labels( test_sz, d );
+
+    std::cout << std::format( "test_warmup: {}, test_labels: {}\n",
+                              mat_shape_str<T, -1, -1>( test_warmup ),
+                              mat_shape_str<T, -1, -1>( test_labels ) );
 
     for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
         const auto [data_col, delay] = feature_data;
+        const auto offset{ max_delay - delay };
 
-        test_warmup.col( i ) = data(
-            Eigen::seq( max_delay - delay, Eigen::last - delay ), data_col );
+        std::cout << std::format( "data_col: {}, delay: {}, offset: {}\n",
+                                  data_col, delay, offset );
+        std::cout << std::format( "Setting warmup {}\n", i );
+        std::cout << std::format(
+            "test_warmup({}): {}\n", i,
+            mat_shape_str<T, -1, -1>( test_warmup.col( i ) ) );
+        std::cout << std::format( "test_warmup({}): {} -> {} (range = {})\n", i,
+                                  offset, offset + warmup_offset,
+                                  warmup_offset + 1 );
+
+        const auto tmp1 =
+            data( Eigen::seq( offset, offset + warmup_offset ), data_col );
+        std::cout << std::format( "tmp1: {}\n",
+                                  mat_shape_str<T, -1, -1>( tmp1 ) );
+
+        test_warmup.col( i ) =
+            data( Eigen::seq( offset, offset + warmup_offset ), data_col );
+
+        std::cout << std::format( "Done.\nSetting labels {}\n", i );
+        std::cout << std::format(
+            "test_labels({}): {}\n", i,
+            mat_shape_str<T, -1, -1>( test_labels.col( i ) ) );
+        std::cout << std::format( "test_labels({}): {} -> {} (range = {})\n", i,
+                                  offset + warmup_offset + 1, n - delay - 1,
+                                  n - delay - offset - warmup_offset );
+
+        const auto tmp2 = data( Eigen::seq( offset + warmup_offset + 1,
+                                            Eigen::placeholders::last - delay ),
+                                data_col );
+        std::cout << std::format( "tmp2: {}\n",
+                                  mat_shape_str<T, -1, -1>( tmp2 ) );
+
         test_labels.col( i ) =
-            data( Eigen::seq( s * ( k - 1 ) + 1 + max_delay - delay,
-                              Eigen::last - delay ),
+            data( Eigen::seq( offset + warmup_offset + 1,
+                              Eigen::placeholders::last - delay ),
                   data_col );
+
+        std::cout << "Done." << std::endl;
     }
+
+    std::cout << std::format( "test_split done.\n" );
 
     return std::tuple{ test_warmup, test_labels };
 }
