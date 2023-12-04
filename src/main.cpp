@@ -1,6 +1,6 @@
 #include "Eigen/Dense"
 #include "NVAR.hpp"
-// #include "nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 #include "simple_csv.hpp"
 
 #include <array>  //exec
@@ -11,8 +11,6 @@
 // #include <stdexcept> // exec
 #include <string> // exec
 #include <tuple>
-
-#define TEST
 
 template <typename T>
 void
@@ -50,7 +48,6 @@ shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-#ifdef TEST
     const std::filesystem::path train_path{
         //"../data/train_data/17_0_-1_10000_0_1_1.csv"
         "../data/train_data/21_0_-1_21000_0_1_1.csv"
@@ -75,20 +72,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*delim=*/",",
         /*max_line_size=*/256 ) };
 
+    const NVAR::Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
+    const NVAR::Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
+
+#ifdef FORECAST
     const bool        use_const{ true };
-    const double      alpha{ 1E-6 }, constant{ 0.1 };
-    const NVAR::Index d{ 3 }, k{ 3 }, s{ 2 }, p{ 3 }, delay{ 2 },
-        data_stride{ 3 };
+    const double      alpha{ 0.1 }, constant{ 0.1 };
+    const NVAR::Index d{ 2 }, k{ 3 }, s{ 1 }, p{ 3 }, data_stride{ 3 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
                               use_const ? "true" : "false", constant );
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
-    const NVAR::Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
-
     const std::vector<std::tuple<NVAR::Index, NVAR::Index>> feature_shape{
-        { 2, 0 }, { 2, delay }, { 1, 0 }
+        { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
 
     const auto [train_samples, train_labels] = NVAR::train_split<double>(
@@ -106,123 +103,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << std::format( "Eigen3 vesion: {}.{}.{}\n", EIGEN_WORLD_VERSION,
                               EIGEN_MAJOR_VERSION, EIGEN_MINOR_VERSION );
 
-    #undef FORECAST
-#endif
-#ifdef FORECAST
-    std::cout << "Running NVAR." << std::endl;
-
-    const std::filesystem::path train_path{
-        //"../data/train_data/17_0_-1_10000_0_1_1.csv"
-        "../data/train_data/21_0_-1_21000_0_1_1.csv"
-    };
-    const std::filesystem::path test_path{
-        "../data/test_data/21_1_-1_189000_0_1_1.csv"
-    };
-
-    const auto train_details = NVAR::parse_filename( train_path.string() );
-    const auto test_details = NVAR::parse_filename( test_path.string() );
-
-    const auto train_csv{ NVAR::SimpleCSV(
-        /*filename=*/train_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim*/ ",",
-        /*max_line_size=*/256 ) };
-    const auto test_csv{ NVAR::SimpleCSV(
-        /*filename=*/test_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim=*/",",
-        /*max_line_size=*/256 ) };
-
-
-    const bool        use_const{ true };
-    const double      alpha{ 1E-6 }, constant{ 0.1 };
-    const NVAR::Index d{ 2 }, k{ 3 }, s{ 2 }, p{ 3 }, n{ 3 }, data_stride{ 3 };
-    std::cout << std::format( "data_stride: {}\n", data_stride );
-    std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
-                              use_const ? "true" : "false", constant );
-    std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
-
-    // Get training samples
-    std::cout << "Getting training samples.\n";
-    const auto              train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> train_data{ train_data_pool(
-        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
-        Eigen::placeholders::all ) };
-    std::cout << "Training keys:\n";
-    int i{ 0 };
-    for ( const auto & key : train_csv.col_titles() ) {
-        std::cout << "\t" << i++ << ": " << key << "\n";
-    }
-    const NVAR::Mat<double> train_samples_0{ train_data(
-        Eigen::seq( 0, Eigen::placeholders::last - 1 ), 1 ) };
-    std::cout << "train_samples_0, should be current i: "
-              << train_samples_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_samples_1{ train_data(
-        Eigen::seq( 0, Eigen::placeholders::last - 1 ), 2 ) };
-    std::cout << "train_samples_1, should be voltage i: "
-              << train_samples_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    if ( train_samples_0.rows() != train_samples_1.rows() ) {
-        std::cout << std::format(
-            "Training samples:\n\tMismatched column lengths: {}, {}\n",
-            train_samples_0.rows(), train_samples_1.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> train_samples( train_samples_0.rows(), 2 );
-    train_samples << train_samples_0, train_samples_1;
-
-    // Get training labels
-    std::cout << "Getting training labels.\n";
-    const NVAR::Mat<double> train_labels_0{ train_data(
-        Eigen::seq( 1, Eigen::placeholders::last ), 1 ) };
-    std::cout << "train_labels_0, should be current i: "
-              << train_labels_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_labels_1{ train_data(
-        Eigen::seq( 1, Eigen::placeholders::last ), 2 ) };
-    std::cout << "train_labels_1, should be voltage i - 1: "
-              << train_labels_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    if ( train_labels_0.rows() != train_labels_1.rows() ) {
-        std::cout << std::format(
-            "Training labels:\n\tMismatched column lengths: {}, {}\n",
-            train_labels_0.rows(), train_labels_1.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> train_labels( train_labels_0.rows(), 2 );
-    train_labels << train_labels_0, train_labels_1;
-
-    // Get testing samples
-    std::cout << "Getting testing samples.\n";
-    const auto              test_data_pool{ test_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> test_data{ test_data_pool(
-        Eigen::seq( 0, Eigen::placeholders::last, data_stride ), Eigen::all ) };
-    const NVAR::Mat<double> test_times{ test_data( Eigen::placeholders::all,
-                                                   0 ) };
-    const NVAR::Mat<double> test_0{ test_data( Eigen::placeholders::all, 1 ) };
-    const NVAR::Mat<double> test_1{ test_data( Eigen::placeholders::all, 2 ) };
-    if ( test_0.rows() != test_1.rows() ) {
-        std::cout << std::format( "Mismatched column lengths: {}, {}\n",
-                                  test_0.rows(), test_1.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> test_sample_pool( test_0.rows(), 2 );
-    test_sample_pool << test_0, test_1;
-
-    const NVAR::Mat<double> test_warmup{ test_sample_pool(
-        Eigen::seqN( 0, s * ( k - 1 ) + 1 ), Eigen::placeholders::all ) };
-    const NVAR::Mat<double> test_labels{ test_sample_pool(
-        Eigen::seq( s * ( k - 1 ) + 2, Eigen::placeholders::last ),
-        Eigen::placeholders::all ) };
-    const NVAR::Mat<double> test_label_times{ test_times(
-        Eigen::seq( s * ( k - 1 ) + 2, Eigen::placeholders::last ), 0 ) };
-
     std::cout << "Training NVAR.\n";
     NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
-        train_samples, train_labels, d, k, s, p, 0.001, true, double{ 0.1 } );
+        train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
+        0.001, true, double{ 0.1 } );
 
 
     std::cout << "Forecasting.\n";
-    auto forecast{ test.forecast( test_warmup, test_labels,
+    auto forecast{ test.forecast( test_warmup.rightCols( d ),
+                                  test_labels.rightCols( d ),
                                   std::vector<NVAR::Index>{ 0 } ) };
 
     // Write results out
@@ -235,44 +124,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << std::format(
         "forecast_col_titles.size(): {}, times.cols(): {}, forecast.cols(): "
         "{}, test_labels.cols(): {}\n",
-        forecast_col_titles.size(), test_label_times.cols(), forecast.cols(),
+        forecast_col_titles.size(), test_labels.cols(), forecast.cols(),
         test_labels.cols() );
     NVAR::Mat<double> forecast_data( forecast.rows(),
-                                     forecast.cols() + test_labels.cols()
-                                         + test_label_times.cols() );
+                                     forecast.cols() + test_labels.cols() );
 
-    forecast_data << test_label_times, forecast, test_labels;
+    forecast_data << test_labels.leftCols( 1 ), forecast,
+        test_labels.rightCols( d );
     NVAR::SimpleCSV::write<double>( forecast_path, forecast_data,
                                     forecast_col_titles );
 #endif
 #ifdef CUSTOM_FEATURES
-    const std::filesystem::path train_path{
-        //"../data/train_data/17_0_-1_10000_0_1_1.csv"
-        "../data/train_data/21_0_-1_21000_0_1_1.csv"
-    };
-    const std::filesystem::path test_path{
-        "../data/test_data/21_1_-1_189000_0_1_1.csv"
-    };
-
-    const auto train_details = NVAR::parse_filename( train_path.string() );
-    const auto test_details = NVAR::parse_filename( test_path.string() );
-
-    const auto train_csv{ NVAR::SimpleCSV(
-        /*filename=*/train_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim*/ ",",
-        /*max_line_size=*/256 ) };
-    const auto test_csv{ NVAR::SimpleCSV(
-        /*filename=*/test_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim=*/",",
-        /*max_line_size=*/256 ) };
-
     const bool        use_const{ true };
-    const double      alpha{ 1 }, constant{ 1 };
-    const NVAR::Index d{ 3 }, k{ 3 }, s{ 2 }, p{ 1 }, n{ 3 }, data_stride{ 3 },
+    const double      alpha{ 0.001 }, constant{ 1 };
+    const NVAR::Index d{ 3 }, k{ 2 }, s{ 1 }, p{ 1 }, data_stride{ 3 },
         delay{ 1 };
     std::cout << std::format( "data_stride: {}, delay: {}\n", data_stride,
                               delay );
@@ -280,104 +145,27 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                               use_const ? "true" : "false", constant );
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
-    // Get training samples
-    std::cout << "Getting training samples.\n";
-    const auto              train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> train_data{ train_data_pool(
-        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
-        Eigen::placeholders::all ) };
-    std::cout << "Training keys:\n";
-    int i{ 0 };
-    for ( const auto & key : train_csv.col_titles() ) {
-        std::cout << "\t" << i++ << ": " << key << "\n";
-    }
-    const NVAR::Mat<double> train_samples_0{ train_data(
-        Eigen::seq( delay, Eigen::placeholders::last - 1 ), 2 ) };
-    std::cout << "train_samples_0, should be voltage i: "
-              << train_samples_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_samples_1{ train_data(
-        Eigen::seq( 0, Eigen::placeholders::last - delay - 1 ), 2 ) };
-    std::cout << "train_samples_1, should be voltage i - 1: "
-              << train_samples_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_samples_2{ train_data(
-        Eigen::seq( delay, Eigen::placeholders::last - 1 ), 1 ) };
-    std::cout << "train_samples_2, should be current i: "
-              << train_samples_2( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    if ( train_samples_0.rows() != train_samples_1.rows()
-         || train_samples_1.rows() != train_samples_2.rows() ) {
-        std::cout << std::format(
-            "Training samples:\n\tMismatched column lengths: {}, {}, {}\n",
-            train_samples_0.rows(), train_samples_1.rows(),
-            train_samples_2.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> train_samples( train_samples_0.rows(), 3 );
-    train_samples << train_samples_0, train_samples_1, train_samples_2;
+    // Feature shape of t_(n), V_(n), V_(n-1), I_(n)
+    const NVAR::FeatureVecShape feature_shape{
+        { 0, 0 }, { 2, 0 }, { 2, delay }, { 1, 0 }
+    };
 
-    // Get training labels
-    std::cout << "Getting training labels.\n";
-    const NVAR::Mat<double> train_labels_0{ train_data(
-        Eigen::seq( delay + 1, Eigen::placeholders::last ), 2 ) };
-    std::cout << "train_labels_0, should be voltage i: "
-              << train_labels_0( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_labels_1{ train_data(
-        Eigen::seq( 1, Eigen::placeholders::last - delay ), 2 ) };
-    std::cout << "train_labels_1, should be voltage i - 1: "
-              << train_labels_1( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    const NVAR::Mat<double> train_labels_2{ train_data(
-        Eigen::seq( delay + 1, Eigen::placeholders::last ), 1 ) };
-    std::cout << "train_labels_2, should be current i: "
-              << train_labels_2( Eigen::seq( 0, n ), 0 ).transpose() << "\n";
-    if ( train_labels_0.rows() != train_labels_1.rows()
-         || train_labels_1.rows() != train_labels_2.rows() ) {
-        std::cout << std::format(
-            "Training labels:\n\tMismatched column lengths: {}, {}, {}\n",
-            train_labels_0.rows(), train_labels_1.rows(),
-            train_labels_2.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> train_labels( train_labels_0.rows(), 3 );
-    train_labels << train_labels_0, train_labels_1, train_labels_2;
-
-    // Get testing samples
-    std::cout << "Getting testing samples.\n";
-    const auto              test_data_pool{ test_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> test_data{ test_data_pool(
-        Eigen::seq( 0, Eigen::placeholders::last, data_stride ),
-        Eigen::placeholders::all ) };
-    const NVAR::Mat<double> test_times{ test_data(
-        Eigen::seq( delay, Eigen::placeholders::last ), 0 ) };
-    const NVAR::Mat<double> test_0{ test_data(
-        Eigen::seq( delay, Eigen::placeholders::last ), 2 ) };
-    const NVAR::Mat<double> test_1{ test_data(
-        Eigen::seq( 0, Eigen::placeholders::last - delay ), 2 ) };
-    const NVAR::Mat<double> test_2{ test_data(
-        Eigen::seq( delay, Eigen::placeholders::last ), 1 ) };
-    if ( test_0.rows() != test_1.rows() || test_1.rows() != test_2.rows() ) {
-        std::cout << std::format( "Mismatched column lengths: {}, {}, {}\n",
-                                  test_0.rows(), test_1.rows(), test_2.rows() );
-        exit( 1 );
-    }
-    NVAR::Mat<double> test_sample_pool( test_0.rows(), 3 );
-    test_sample_pool << test_0, test_1, test_2;
-
-    const NVAR::Mat<double> test_warmup{ test_sample_pool(
-        Eigen::seqN( 0, s * ( k - 1 ) ), Eigen::placeholders::all ) };
-    const NVAR::Mat<double> test_labels{ test_sample_pool(
-        Eigen::seq( s * ( k - 1 ) + 1, Eigen::placeholderslast ),
-        Eigen::placeholders::all ) };
-    const NVAR::Mat<double> test_label_times{ test_times(
-        Eigen::seq( s * ( k - 1 ) + 1, Eigen::placeholders::last ), 0 ) };
+    // Get train / test data
+    const auto [train_pair, test_pair] = NVAR::data_split<double>(
+        train_data_pool, test_data_pool, feature_shape, k, s, data_stride );
+    const auto [train_samples, train_labels] = train_pair;
+    const auto [test_warmup, test_labels] = test_pair;
 
     // Building NVAR
     std::cout << "Building NVAR.\n";
     NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
-        train_samples, train_labels, d, k, s, p, alpha, use_const,
-        double{ constant } );
+        train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
+        alpha, use_const, double{ constant } );
 
     std::cout << "Forecasting.\n";
-    auto forecast{ test.forecast( test_warmup, test_labels,
-                                  std::vector<NVAR::Index>{ 2 } ) };
+    auto forecast{ test.forecast( test_warmup.rightCols( d ),
+                                  test_labels.rightCols( d ),
+                                  std::vector<NVAR::Index>{ 1, 2 } ) };
 
     // Write results out
     std::cout << "Writing results.\n";
@@ -388,15 +176,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "t", "V_(n)", "V_(n-1)", "I_(n)", "V_(n)'", "V_(n-1)'", "I_(n)'"
     };
     std::cout << std::format(
-        "forecast_col_titles.size(): {}, times.cols(): {}, forecast.cols(): "
+        "forecast_col_titles.size(): {},  forecast.cols(): "
         "{}, test_labels.cols(): {}\n",
-        forecast_col_titles.size(), test_label_times.cols(), forecast.cols(),
-        test_labels.cols() );
+        forecast_col_titles.size(), forecast.cols(), test_labels.cols() );
     NVAR::Mat<double> forecast_data( forecast.rows(),
-                                     forecast.cols() + test_labels.cols()
-                                         + test_label_times.cols() );
+                                     forecast.cols() + test_labels.cols() );
 
-    forecast_data << test_label_times, forecast, test_labels;
+    forecast_data << test_labels.leftCols( 1 ), forecast,
+        test_labels.rightCols( d );
     NVAR::SimpleCSV::write<double>( forecast_path, forecast_data,
                                     forecast_col_titles );
 
@@ -429,36 +216,31 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto doublescroll_train_data{ doublescroll_train_csv.atv<double>() };
     const auto doublescroll_test_data{ doublescroll_test_csv.atv<double>() };
 
+    const bool        use_const{ false };
     const NVAR::Index d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
-    const NVAR::Index n_warmup{ s2 * ( k2 - 1 ) };
+    const double      alpha{ 2.5E-6 }, constant{ 1 };
+    std::cout << std::format(
+        "doublescroll_train_data: {}\n",
+        NVAR::mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
+    const NVAR::FeatureVecShape feature_shape{ { 1, 0 }, { 2, 0 }, { 3, 0 } };
 
-    // Split training samples & labels
-    const auto doublescroll_train_samples{ doublescroll_train_data(
-        Eigen::seq( 0, Eigen::placeholders::last - 1 ), Eigen::seq( 1, 3 ) ) };
-    const auto doublescroll_train_labels{ doublescroll_train_data(
-        Eigen::seq( ( k2 - 1 ) * s2 + 1, Eigen::placeholders::last ),
-        Eigen::seq( 1, 3 ) ) };
-
-    // Pick out warmup from testing set
-    const auto doublescroll_warmup{ doublescroll_test_data(
-        Eigen::seq( 0, n_warmup ), Eigen::seq( 1, 3 ) ) };
-
-    // Split testing samples & labels
-    const auto doublescroll_test_samples{ doublescroll_test_data(
-        Eigen::seq( n_warmup + 1, Eigen::placeholders::last - 1 ),
-        Eigen::seq( 1, 3 ) ) };
-    const auto doublescroll_test_labels{ doublescroll_test_data(
-        Eigen::seq( n_warmup + 2, Eigen::placeholders::last ),
-        Eigen::seq( 1, 3 ) ) };
+    const auto [doublescroll_train_pair, doublescroll_test_pair] =
+        NVAR::data_split<double>( doublescroll_train_data,
+                                  doublescroll_test_data, feature_shape, k2,
+                                  s2 );
+    const auto [doublescroll_train_samples, doublescroll_train_labels] =
+        doublescroll_train_pair;
+    const auto [doublescroll_warmup, doublescroll_test_labels] =
+        doublescroll_test_pair;
 
     // Create NVAR model
     NVAR::NVAR_runtime<double> doublescroll_test(
         doublescroll_train_samples, doublescroll_train_labels, d2, k2, s2, p2,
-        0.01, false, double{ 1. } );
+        alpha, use_const, constant );
 
     // Forecast
     auto doublescroll_forecast{ doublescroll_test.forecast(
-        doublescroll_warmup, doublescroll_test_labels, { 0 } ) };
+        doublescroll_warmup, doublescroll_test_labels, { 0, 1 } ) };
 
     // Write data
     const std::filesystem::path doublescroll_forecast_path{
@@ -473,7 +255,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto base_path{ std::filesystem::absolute(
         std::filesystem::current_path() / ".." ) };
 
-    const std::vector<std::string> files{ "a1t01", "a3t05", "a7t10", "a8t18" };
+    const std::vector<std::string> files{ "a2t11", "a4t15",
+                                          "a6t12", /*"a6t38",*/
+                                          "a8t19" };
+    std::vector<std::string>       results_files;
+
+    const bool        use_const{ true };
+    const double      alpha{ 0.1 }, constant{ 1 };
+    const NVAR::Index d{ 2 }, k{ 5 }, s{ 2 }, p{ 3 }, data_stride{ 5 },
+        delay{ 1 };
+    std::cout << std::format( "data_stride: {}, delay: {}\n", data_stride,
+                              delay );
+    std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
+                              use_const ? "true" : "false", constant );
+    std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
     for ( const auto & file : files ) {
         const auto python_file = base_path / "data" / "decompress_signal.py";
@@ -483,37 +278,125 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         std::cout << "Reading from: " << read_path << std::endl;
         std::cout << "Writing to: " << write_path << std::endl;
 
+        std::cout << "Decompressing..." << std::endl;
         const std::string decompress_cmd{ std::format(
             "python3.11 {} {} {}", python_file.string(), read_path.string(),
             write_path.string() ) };
         const auto [decompress_result_code, decompress_msg] =
             exec( decompress_cmd.c_str() );
 
-        std::cout << std::format( "{}:\nResult code: {}\nMessage:\n{}\n", file,
-                                  decompress_result_code, decompress_msg );
+        std::cout << std::format(
+            "{}:\nResult code: {}\n-----\nMessage:\n-----\n{}\nDone.\n", file,
+            decompress_result_code, decompress_msg );
 
         if ( decompress_result_code == 0 /* Success code */ ) {
             std::cout << "Successful decompress" << std::endl;
-            // Create training data
-            // Create warmup
-            // Create test data
+            // Load data
+            // clang-format off
+            const auto csv{ NVAR::SimpleCSV(
+                /*filename=*/write_path,
+                /*col_titles=*/true,
+                /*skip_header=*/0,
+                /*delim*/ ",",
+                /*max_line_size=*/256 )
+            };
+            // clang-format on
+            const NVAR::Mat<double> full_data{ csv.atv<double>( 0, 0 ) };
+
+            // Split data
+            std::cout << "Splitting data..." << std::endl;
+
+            const NVAR::FeatureVecShape shape{ { 0, 0 }, { 1, 0 }, { 2, 0 } };
+
+            const auto [train_pair, test_pair] = NVAR::data_split<double>(
+                /* data */ full_data, /* train_test_ratio */ 0.5,
+                /* shape */ shape,
+                /* k */ k,
+                /* s */ s, /* stride */ data_stride );
+
+            const auto [train_samples, train_labels] = train_pair;
+            const auto [test_warmup, test_labels] = test_pair;
+
+            std::cout << std::format(
+                "train_samples: {}\ntrain_labels: {}\ntest_warmup: "
+                "{}\ntest_labels: {}\n",
+                NVAR::mat_shape_str<double, -1, -1>( train_samples ),
+                NVAR::mat_shape_str<double, -1, -1>( train_labels ),
+                NVAR::mat_shape_str<double, -1, -1>( test_warmup ),
+                NVAR::mat_shape_str<double, -1, -1>( test_labels ) );
+
+            std::cout << "Done." << std::endl;
+
             // Train NVAR
+            std::cout << "Training NVAR..." << std::endl;
+
+            NVAR::NVAR_runtime<double> nvar( train_samples.rightCols( d ),
+                                             train_labels.rightCols( d ), d, k,
+                                             s, p, alpha, use_const, constant );
+
+            std::cout << "Done." << std::endl;
+
             // Forecast forwards
+            std::cout << "Forecasting..." << std::endl;
+
+            const auto forecast{ nvar.forecast( test_warmup.rightCols( d ),
+                                                test_labels.rightCols( d ),
+                                                { 1 } ) };
+
+            std::cout << "Done." << std::endl;
+
             // Write result file
+            std::cout << "Writing result..." << std::endl;
+
+            const std::filesystem::path forecast_path{
+                "../data/forecast_data"
+            };
+            const auto write_file{ forecast_path / ( file + ".csv" ) };
+
+            const std::vector<std::string> col_titles{ "t", "Vmembrane'",
+                                                       "Istim'", "Vmembrane",
+                                                       "Istim" };
+
+            NVAR::Mat<double> results( forecast.rows(),
+                                       test_labels.cols() + forecast.cols() );
+            results << test_labels, forecast;
+
+            NVAR::SimpleCSV::write<double>( write_file, results, col_titles );
+            results_files.push_back( write_file.string() );
+
+            std::cout << "Done." << std::endl;
+        }
+
+        if ( std::filesystem::directory_entry( write_path ).exists() ) {
             // Delete decompressed file
-            // const std::string remove_cmd{ std::format( "rm {}",
-            //                                           write_path.string() )
-            //                                           };
-            // const auto [result_code, rm_std_output] =
-            //    exec( remove_cmd.c_str() );
-            // if ( result_code != 0 ) {
-            //    std::cout << "Failed to remove decompressed file." <<
-            //    std::endl; std::cout << "Message:\n" << rm_std_output << "\n";
-            //    break;
-            //}
-            // std::cout << "Message:\n" << rm_std_output << "\n";
+            std::cout << "Deleting decompressed file..." << std::endl;
+
+            const std::string remove_cmd{ std::format( "rm {}",
+                                                       write_path.string() ) };
+
+            const auto [result_code, rm_std_output] =
+                exec( remove_cmd.c_str() );
+
+            if ( result_code != 0 ) {
+                std::cout << "Failed to remove decompressed file." << std::endl;
+                std::cout << "Message:\n" << rm_std_output << "\n";
+                exit( EXIT_FAILURE );
+            }
+            std::cout << "Message:\n-----\n" << rm_std_output << "\n-----\n";
+
+            std::cout << "Done.\n" << std::endl;
         }
     }
+
+    nlohmann::json file_json;
+    file_json["results_files"] = results_files;
+
+    const std::filesystem::path results_file_path{
+        "../metadata/results_files.json"
+    };
+    std::ofstream output( results_file_path );
+    output << std::setw( 4 ) << file_json << std::endl;
+
 #endif
     return 0;
 }

@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import wfdb
@@ -6,7 +5,7 @@ import sys
 
 
 def transform_signals(signals):
-    return np.array(signals[:, 0] * 0.1, signals[:, 1] * 5)
+    return np.array([signals[:, 0] * 0.1, signals[:, 1] * 5])
 
 
 if __name__ == "__main__":
@@ -30,13 +29,22 @@ if __name__ == "__main__":
     # Transform into physical units
     print("Transforming signals to physical units.")
     signals = transform_signals(raw_signals)
+    dt = 1 / record.fs
+    times = dt * np.array(list(range(record.sig_len)))
+
+    data = {
+        "t": times
+    }
+    for title, arr in zip(col_titles, signals):
+        data[title] = arr
 
     print("Writing to output.")
     # Write out to new file
     with open(writepath, "w") as file:
-        file.write(",".join(col_titles) + "\n")
-        for i in range(signals.shape[0]):
-            file.write(",".join([str(x) for x in signals[i, :]]) + "\n")
+        file.write(",".join(data.keys()) + "\n")
+        for i in range(record.sig_len):
+            vals = [data[key][i] for key in data.keys()]
+            file.write(",".join([str(x) for x in vals]) + "\n")
     print("Finished.")
 
     exit(0)

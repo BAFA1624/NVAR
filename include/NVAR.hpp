@@ -208,7 +208,7 @@ class NVAR_runtime
     construct_total_vec( const ConstRefMat<T> samples ) const noexcept;
 
     [[nodiscard]] constexpr inline Mat<T>
-    ridge_regress( const ConstRefMat<T> samples, const ConstRefMat<T> labels,
+    ridge_regress( const ConstRefMat<T> labels,
                    const ConstRefMat<T> total_feature_vec ) noexcept;
 
     public:
@@ -247,31 +247,39 @@ class NVAR_runtime
             linear_features, nonlinear_features ) };
         // std::cout << total_features.leftCols( 10 ) << "\n";
         // std::cout << "Performing ridge regression.\n";
-        m_w_out = ridge_regress( samples, labels, total_features );
+#ifdef TARGET_DIFFERENCE
+        m_w_out = ridge_regress( labels - samples, total_features );
+#else
+        m_w_out = ridge_regress( labels, total_features );
+#endif
         std::cout << "m_w_out:\n" << m_w_out.transpose() << std::endl;
-
-#ifdef FORECAST
+#ifndef HH_MODEL
+    #ifdef FORECAST
         const std::filesystem::path    path{ "../data/forecast_data/tmp.csv" };
         const std::vector<std::string> col_titles{ "I", "V", "I'", "V'" };
-#endif
-#ifdef CUSTOM_FEATURES
+    #endif
+    #ifdef CUSTOM_FEATURES
         const std::filesystem::path    path{ "../data/forecast_data/tmp.csv" };
         const std::vector<std::string> col_titles{ "V_(n)",    "V_(n-1)",
                                                    "I_(n)",    "V_(n)'",
                                                    "V_(n-1)'", "I_(n)'" };
-#endif
-#ifdef DOUBLESCROLL
+    #endif
+    #ifdef DOUBLESCROLL
         const std::filesystem::path path{
             "../data/forecast_data/doublescroll_reconstruct.csv"
         };
         const std::vector<std::string> col_titles{ "v1", "v2", "I" };
-#endif
-        std::cout << std::format(
-            "m_w_out: ({}, {}), total_features: ({}, {})\n", m_w_out.rows(),
-            m_w_out.cols(), total_features.rows(), total_features.cols() );
-#ifndef TARGET_DIFFERENCE
+    #endif
+    #ifdef HH_MODEL
+        const std::filesystem::path    path{ "../data/forecast_data/tmp.csv" };
+        const std::vector<std::string> col_titles{ "Vmembrane", "Istim" };
+    #endif
+        // std::cout << std::format(
+        //     "m_w_out: ({}, {}), total_features: ({}, {})\n", m_w_out.rows(),
+        //     m_w_out.cols(), total_features.rows(), total_features.cols() );
+    #ifndef TARGET_DIFFERENCE
         Mat<T> reproduced = ( m_w_out * total_features ).transpose();
-#else
+    #else
         Mat<T> reproduced_differences =
             ( m_w_out * total_features ).transpose();
         Mat<T> reproduced = samples.bottomRows( reproduced_differences.rows() );
@@ -283,13 +291,14 @@ class NVAR_runtime
         for ( Index c{ 0 }; c < reproduced_differences.rows(); ++c ) {
             reproduced.row( c ) += reproduced_differences.row( c );
         }
-#endif
+    #endif
         std::cout << std::format( "reproduced: ({}, {})\n", reproduced.rows(),
                                   reproduced.cols() );
 
         Mat<T> reconstructed( reproduced.rows(), reproduced.cols() * 2 );
         reconstructed << reproduced, labels;
         SimpleCSV::write<T>( path, reconstructed, col_titles );
+#endif
     }
 
     [[nodiscard]] constexpr inline auto w_out() const noexcept {
@@ -380,18 +389,8 @@ NVAR_runtime<T, Nonlin>::construct_total_vec(
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
 NVAR_runtime<T, Nonlin>::ridge_regress(
-    [[maybe_unused]] const ConstRefMat<T> samples, const ConstRefMat<T> labels,
+    const ConstRefMat<T> labels,
     const ConstRefMat<T> total_feature_vec ) noexcept {
-#ifdef TARGET_DIFFERENCE
-    std::cout << std::format( "labels: ({}, {})\n", labels.rows(),
-                              labels.cols() );
-    std::cout << std::format( "samples: ({}, {})\n", samples.rows(),
-                              samples.cols() );
-    std::cout << std::format( "m_n_training_inst: {}\n", m_n_training_inst );
-    const Mat<T> Yd{ labels - samples.bottomRows( m_n_training_inst ) };
-
-    std::cout << std::format( "Yd: ({}, {})\n", Yd.rows(), Yd.cols() );
-#endif
     const auto feature_vec_product{ total_feature_vec
                                     * total_feature_vec.transpose() };
     std::cout << "feature vec det: " << feature_vec_product.determinant()
@@ -411,24 +410,14 @@ NVAR_runtime<T, Nonlin>::ridge_regress(
     // L2 regularization adapts linear regression to ill-posed problems
     const auto sum{ feature_vec_product + tikhonov_matrix };
     const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
-#ifdef TARGET_DIFFERENCE
-    std::cout << std::format( "factor: ({}, {})\n", factor.rows(),
-                              factor.cols() );
-    // const Mat<T> tmp{ sum.completeOrthogonalDecomposition().solve(
-    //     total_feature_vec ) };
-    //  const Mat<T> result{ Yd.transpose() * tmp.transpose() };
-    const auto result{ Yd.transpose()
-                       * ( factor * total_feature_vec ).transpose() };
-    std::cout << std::format( "result: ({}, {})\n", result.rows(),
-                              result.cols() );
-#else
-    std::cout << std::format(
-        "labels: ({}, {}), factor: ({}, {}), total_feature_vec: ({}, {})\n",
-        labels.rows(), labels.cols(), factor.rows(), factor.cols(),
-        total_feature_vec.rows(), total_feature_vec.cols() );
+
+    std::cout << std::format( "labels: {}, factor: {}, total_feature_vec: {}\n",
+                              mat_shape_str<T, -1, -1>( labels ),
+                              mat_shape_str<T, -1, -1>( factor ),
+                              mat_shape_str<T, -1, -1>( total_feature_vec ) );
+
     const auto result{ labels.transpose()
                        * ( factor * total_feature_vec ).transpose() };
-#endif
     return result;
 }
 
@@ -442,6 +431,8 @@ NVAR_runtime<T, Nonlin>::forecast(
     [[maybe_unused]] const Index min_idx{ *std::min_element(
         pass_through.cbegin(), pass_through.cend() ) };
     assert( max_idx < warmup.cols() && min_idx >= 0 );
+
+    std::cout << std::format( "" );
 
     const Index N{ labels.rows() };
     Mat<T>      result{ Mat<T>::Zero( N, m_d ) };

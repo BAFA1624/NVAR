@@ -15,7 +15,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
-set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Werror -DNDEBUG -march=native -Wno-error=class-memaccess -Wall -Wextra -pedantic -O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Wno-error=deprecated-enum-enum-conversion -Wno-error=class-memaccess -Werror -DNDEBUG -march=native -Wall -Wextra -pedantic -O3")
 
 option(JSON_ImplicitConversions OFF)
 
@@ -95,13 +95,11 @@ add_custom_command(
 )
 
 # HH model target
-#set(HH_READ ${CMAKE_CURRENT_SOURCE_DIR}/data/hh_model_data/a1t01 CACHE STRING "")
-#set(HH_WRITE ${CMAKE_CURRENT_SOURCE_DIR}/tmp/decompressed.csv CACHE STRING "")
 add_executable(hhmodel src/main.cpp src/NVAR_util.cpp)
 target_compile_definitions(hhmodel PUBLIC HH_MODEL)
 add_custom_target(
 	hh_model
-	COMMAND hhmodel ${HH_READ} ${HH_WRITE}
+	COMMAND hhmodel
 	DEPENDS hhmodel
 	COMMENT "Fitting Hodgkin-Huxley model."
 )

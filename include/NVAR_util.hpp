@@ -57,6 +57,10 @@ using RefMat = Eigen::Ref<Mat<T, R, C>>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using ConstRefMat = Eigen::Ref<const Mat<T, R, C>>;
 
+using FeatureVecShape = std::vector<std::tuple<NVAR::Index, NVAR::Index>>;
+template <Weight T, Index R = -1, Index C = -1>
+using DataPair = std::tuple<Mat<T, R, C>, Mat<T, R, C>>;
+
 template <typename T, NVAR::Index R = -1, NVAR::Index C = -1>
 std::string
 mat_shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
@@ -230,8 +234,11 @@ combinations_with_replacement( const ConstRefVec<T> v, const Index d,
         }
 
         // Increment found index & adjust subsequent
-        indices[j]++;
-        for ( Index i{ j + 1 }; i < k; ++i ) { indices[i] = indices[i - 1]; }
+        indices[static_cast<std::size_t>( j )]++;
+        for ( Index i{ j + 1 }; i < k; ++i ) {
+            indices[static_cast<std::size_t>( i )] =
+                indices[static_cast<std::size_t>( i - 1 )];
+        }
     }
 
     return result;
@@ -300,10 +307,8 @@ get_filename( const std::map<std::string, Index> & file_params );
 // std::filesystem::path
 // get_metadata_filename( const std::map<char, Index> & hyperparams ) {}
 
-using FeatureVecShape = std::vector<std::tuple<Index, Index>>;
-
 template <Weight T>
-std::tuple<Mat<T>, Mat<T>>
+DataPair<T>
 train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
              const Index k, const Index s, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
@@ -318,75 +323,32 @@ train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
         label_size{ n - max_delay - 1 - s * ( k - 1 ) },
         label_offset{ s * ( k - 1 ) };
 
-    std::cout << std::format(
-        "n: {}, d: {}, train_size: {}, label_size: {}, label_offset: {}\n", n,
-        d, train_size, label_size, label_offset );
-
     Mat<T> train_samples( train_size, d ), train_labels( label_size, d );
-
-    std::cout << std::format( "train_samples: {}, train_labels: {}\n",
-                              mat_shape_str<T, -1, -1>( train_samples ),
-                              mat_shape_str<T, -1, -1>( train_labels ) );
 
     for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
         const auto [data_col, delay] = feature_data;
         const auto offset{ max_delay - delay };
-        std::cout << std::format( "data_col: {}, delay: {}, offset: {}\n",
-                                  data_col, delay, offset );
-        std::cout << std::format( "Setting samples {}\n", i );
-        std::cout << std::format(
-            "train_samples({}): {}\n", i,
-            mat_shape_str<T, -1, -1>( train_samples.col( i ) ) );
-        std::cout << std::format( "train_samples({}): {} -> {} (range = {})\n",
-                                  i, offset, n - 2 - delay,
-                                  n - 1 - delay - offset );
-
-        const auto tmp1 =
-            data( Eigen::seq( offset, Eigen::placeholders::last - delay - 1 ),
-                  data_col );
-
-        std::cout << std::format( "tmp1: {}\n",
-                                  mat_shape_str<T, -1, -1>( tmp1 ) );
 
         train_samples.col( i ) =
             data( Eigen::seq( offset, Eigen::placeholders::last - delay - 1 ),
                   data_col );
 
-        std::cout << std::format( "Done.\nSetting labels {}\n", i );
-        std::cout << std::format(
-            "train_labels({}): {}\n", i,
-            mat_shape_str<T, -1, -1>( train_labels.col( i ) ) );
-        std::cout << std::format( "train_labels({}): {} -> {} (range = {})\n",
-                                  i, offset + label_offset + 1, n - 1 - delay,
-                                  n - 1 - delay - offset - label_offset );
-
-        const auto tmp2 = data( Eigen::seq( offset + label_offset + 1,
-                                            Eigen::placeholders::last - delay ),
-                                data_col );
-        std::cout << std::format( "tmp2: {}\n",
-                                  mat_shape_str<T, -1, -1>( tmp2 ) );
-
         train_labels.col( i ) =
             data( Eigen::seq( offset + label_offset + 1,
                               Eigen::placeholders::last - delay ),
                   data_col );
-        std::cout << "Done." << std::endl;
     }
-
-    std::cout << "Finished train_split.\n\n";
 
     return std::tuple{ train_samples, train_labels };
 }
 
 template <Weight T>
-std::tuple<Mat<T>, Mat<T>>
+DataPair<T>
 test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
             const Index k, const Index s, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
         Eigen::placeholders::all ) };
-
-    std::cout << std::format( "data: {}", mat_shape_str<T, -1, -1>( data ) );
 
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<0> ) },
@@ -394,63 +356,46 @@ test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
         n{ static_cast<Index>( data.rows() ) }, warmup_offset{ s * ( k - 1 ) },
         test_sz{ n - max_delay - warmup_offset - 1 };
 
-    std::cout << std::format(
-        "n: {}, d: {}, max_delay: {}, warmup_sz: {}, test_sz: {}\n", n, d,
-        max_delay, warmup_offset + 1, test_sz );
-
     Mat<T> test_warmup( warmup_offset + 1, d ), test_labels( test_sz, d );
-
-    std::cout << std::format( "test_warmup: {}, test_labels: {}\n",
-                              mat_shape_str<T, -1, -1>( test_warmup ),
-                              mat_shape_str<T, -1, -1>( test_labels ) );
 
     for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
         const auto [data_col, delay] = feature_data;
         const auto offset{ max_delay - delay };
 
-        std::cout << std::format( "data_col: {}, delay: {}, offset: {}\n",
-                                  data_col, delay, offset );
-        std::cout << std::format( "Setting warmup {}\n", i );
-        std::cout << std::format(
-            "test_warmup({}): {}\n", i,
-            mat_shape_str<T, -1, -1>( test_warmup.col( i ) ) );
-        std::cout << std::format( "test_warmup({}): {} -> {} (range = {})\n", i,
-                                  offset, offset + warmup_offset,
-                                  warmup_offset + 1 );
-
-        const auto tmp1 =
-            data( Eigen::seq( offset, offset + warmup_offset ), data_col );
-        std::cout << std::format( "tmp1: {}\n",
-                                  mat_shape_str<T, -1, -1>( tmp1 ) );
-
         test_warmup.col( i ) =
             data( Eigen::seq( offset, offset + warmup_offset ), data_col );
-
-        std::cout << std::format( "Done.\nSetting labels {}\n", i );
-        std::cout << std::format(
-            "test_labels({}): {}\n", i,
-            mat_shape_str<T, -1, -1>( test_labels.col( i ) ) );
-        std::cout << std::format( "test_labels({}): {} -> {} (range = {})\n", i,
-                                  offset + warmup_offset + 1, n - delay - 1,
-                                  n - delay - offset - warmup_offset );
-
-        const auto tmp2 = data( Eigen::seq( offset + warmup_offset + 1,
-                                            Eigen::placeholders::last - delay ),
-                                data_col );
-        std::cout << std::format( "tmp2: {}\n",
-                                  mat_shape_str<T, -1, -1>( tmp2 ) );
 
         test_labels.col( i ) =
             data( Eigen::seq( offset + warmup_offset + 1,
                               Eigen::placeholders::last - delay ),
                   data_col );
-
-        std::cout << "Done." << std::endl;
     }
 
-    std::cout << std::format( "test_split done.\n" );
-
     return std::tuple{ test_warmup, test_labels };
+}
+
+template <Weight T>
+std::tuple<DataPair<T>, DataPair<T>>
+data_split( const ConstRefMat<T> train_data, const ConstRefMat<T> test_data,
+            const FeatureVecShape & shape, const Index k, const Index s,
+            const Index stride = 1 ) {
+    return { train_split<T>( train_data, shape, k, s, stride ),
+             test_split<T>( test_data, shape, k, s, stride ) };
+}
+
+template <Weight T>
+std::tuple<DataPair<T>, DataPair<T>>
+data_split( const ConstRefMat<T> data, const double train_test_ratio,
+            const FeatureVecShape & shape, const Index k, const Index s,
+            const Index stride = 1 ) {
+    const Index train_size{ static_cast<Index>(
+        static_cast<double>( data.rows() ) * train_test_ratio ) },
+        test_size{ data.rows() - train_size };
+
+    const ConstRefMat<T> train_data{ data.topRows( train_size ) };
+    const ConstRefMat<T> test_data{ data.bottomRows( test_size ) };
+
+    return data_split<T>( train_data, test_data, shape, k, s, stride );
 }
 
 } // namespace NVAR
