@@ -58,6 +58,3 @@ for file in ["a2t11", "a4t15", "a6t12", "a6t38", "a8t19"]:
         plt.show()
     else:
         plt.close()
-
-    # Remove file
-    os.remove(os.path.join(search_dir, file))
