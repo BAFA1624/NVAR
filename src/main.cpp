@@ -13,6 +13,20 @@
 #include <tuple>
 
 template <typename T>
+concept Printable = requires( const T x ) { std::cout << x; };
+
+template <Printable T>
+std::ostream &
+operator<<( std::ostream & stream, const std::vector<T> & v ) {
+    stream << "[ ";
+    for ( const auto & x : v | std::views::take( v.size() - 1 ) ) {
+        stream << x << " ";
+    }
+    stream << v.back() << " ]";
+    return stream;
+}
+
+template <Printable T>
 void
 print( const std::vector<T> & v ) {
     for ( const auto & x : v ) { std::cout << x << "  "; }
@@ -347,18 +361,35 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             // Write result file
             std::cout << "Writing result..." << std::endl;
+            std::cout << std::format(
+                "forecast: {}, test_labels: {}\n",
+                NVAR::mat_shape_str<double, -1, -1>( forecast ),
+                NVAR::mat_shape_str<double, -1, -1>( test_labels ) );
 
             const std::filesystem::path forecast_path{
                 "../data/forecast_data"
             };
+            std::cout << std::format( "forecast_path: {}\n",
+                                      forecast_path.string() );
+            std::cout << std::format( "file: {}, (file+\".csv\"): {}\n", file,
+                                      ( file + ".csv" ) );
             const auto write_file{ forecast_path / ( file + ".csv" ) };
+            std::cout << std::format( "write_file: {}\n", write_file.string() );
 
             const std::vector<std::string> col_titles{ "t", "Vmembrane'",
                                                        "Istim'", "Vmembrane",
                                                        "Istim" };
 
+            std::cout << std::format( "col_titles: {}", col_titles.size() );
+            std::cout << "col_titles = " << col_titles << std::endl;
+
             NVAR::Mat<double> results( forecast.rows(),
                                        test_labels.cols() + forecast.cols() );
+
+            std::cout << std::format(
+                "results: {}\n",
+                NVAR::mat_shape_str<double, -1, -1>( results ) );
+
             results << test_labels, forecast;
 
             NVAR::SimpleCSV::write<double>( write_file, results, col_titles );
