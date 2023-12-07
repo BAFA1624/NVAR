@@ -1,10 +1,14 @@
 import os
 import re
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-show_plots = True
-transient_sz = 20000
+mpl.rcParams["figure.dpi"] = 200
+
+savefigs = True
+show_plots = False
+transient_sz = 19000
 
 src_dir = os.path.abspath(os.path.join(os.getcwd(), "src_files"))
 dir = os.path.abspath(os.path.join(os.getcwd(), "train_test_src"))
@@ -79,17 +83,22 @@ for N in sorted(file_types["N"]):
             lines.append(",".join([str(t), str(v)]) + "\n")
         file.writelines(lines)
 
+    figure_name = os.path.join(os.getcwd(), "graphs", f"{N}_measured_v_integrated")
+    plt.title(str(int(N)))
+    #plt.title("Measured / Integrated Membrane Potential")
+    plt.plot(
+        times,
+        mv_data[transient_sz:],
+        linestyle="-",
+        label="measured",
+        color="k"
+    )
+    plt.plot(it_data, iv_data, linestyle="--", linewidth=0.8, label="integrated", color="r")
+    plt.legend()
+    if savefigs:
+        plt.savefig(figure_name, dpi=200)
     if show_plots:
-        figure_name = os.path.join(os.getcwd(), "graphs", f"{N}_measured_v_integrated")
-        plt.title(str(N))
-        plt.plot(
-            times,
-            mv_data[transient_sz:],
-            marker=",",
-            linestyle=None,
-            label="measured",
-        )
-        # plt.plot(it_data, iv_data, linestyle="--", linewidth=0.8, label="integrated")
-        plt.legend()
-        plt.savefig(figure_name)
+        plt.tight_layout()
         plt.show()
+    else:
+        plt.close()
