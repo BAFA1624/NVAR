@@ -15,168 +15,8 @@
 namespace NVAR
 {
 
-template <Weight T, Index N = -1, Index d = -1, Index k = -1, Index s = -1,
-          Index p = -1, bool C = true, nonlinear_t Nonlin = nonlinear_t::poly>
-class NVAR
-{
-    private:
-    constexpr static inline const Index n_training_inst{ N - s * ( k - 1 ) };
-    constexpr static inline const Index n_linear_feat{ d * k };
-    constexpr static inline const Index n_nonlinear_feat{
-        def_nonlinear_size<d, k, p, Nonlin>()
-    };
-    constexpr static inline const Index n_feature_param{
-        def_total_size<d, k, p, Nonlin, C>()
-    };
-
-    // Ridge parameter
-    T m_ridge_param;
-    // Output weight matrix
-    Mat<T, d, def_total_size<d, k, p, Nonlin, C>()> m_w_out;
-
-    // Private functions to construct feature vectors
-    [[nodiscard]] constexpr inline Mat<T, d * k, N - s *( k - 1 )>
-    construct_linear_feature_vec(
-        const RefMat<T, N, d> samples ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T, def_nonlinear_size<d, k, p, Nonlin>(),
-                                       N - s *( k - 1 )>
-    construct_nonlinear_feature_vec( const RefMat<T, d * k, N - s *( k - 1 )>
-                                         lin_components ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T, def_total_size<d, k, p, Nonlin, C>(),
-                                       N - s *( k - 1 )>
-    construct_total_feature_vec(
-        const RefMat<T, d * k, N - s *( k - 1 )> linear_feat,
-        const RefMat<T, def_nonlinear_size<d, k, p, Nonlin>(), N - s *( k - 1 )>
-                nonlinear_feat,
-        const T constant ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T, def_total_size<d, k, p, Nonlin, C>(),
-                                       N - s *( k - 1 )>
-    construct_total_feature_vec( const RefMat<T, N, d> samples,
-                                 const T constant = T{ 0. } ) const noexcept;
-
-    // Ridge regression for m_w_out
-    [[nodiscard]] constexpr inline Mat<T, d,
-                                       def_total_size<d, k, p, Nonlin, C>()>
-    ridge_regress(
-        const RefMat<T, d, N - s *( k - 1 )> labels_transposed,
-        const RefMat<T, def_total_size<d, k, p, Nonlin, C>(), N - s *( k - 1 )>
-            total_feature_vec ) noexcept;
-
-    public:
-    constexpr NVAR( const RefMat<T, N, d>                samples,
-                    const RefMat<T, N - s *( k - 1 ), d> labels,
-                    const T ridge_param, const T constant = T{ 0. } ) :
-        m_ridge_param( ridge_param ) {
-        // Create feature vectors
-        const auto linear_feature_vec{ construct_linear_feature_vec(
-            samples ) };
-        const auto nonlinear_feature_vec{ construct_nonlinear_feature_vec(
-            linear_feature_vec ) };
-        const auto total_feature_vec{ construct_total_feature_vec(
-            linear_feature_vec, nonlinear_feature_vec, constant ) };
-
-        // Calculate W_out
-        m_w_out = ridge_regress( labels.transpose(), total_feature_vec );
-    }
-
-    [[nodiscard]] constexpr inline auto w_out() const noexcept {
-        return m_w_out;
-    }
-
-    [[nodiscard]] constexpr inline Vec<T, d>
-    next( const RefMat<T, k * s, d> warmup_samples ) const noexcept;
-    template <Index M>
-    [[nodiscard]] constexpr inline Mat<T, M, d>
-    forecast( const RefMat<T, k * s, d> warmup_samples ) const noexcept;
-};
-
-template <Weight T, Index N, Index d, Index k, Index s, Index p, bool C,
-          nonlinear_t Nonlin>
-[[nodiscard]] constexpr inline Mat<T, d * k, N - s *( k - 1 )>
-NVAR<T, N, d, k, s, p, C, Nonlin>::construct_linear_feature_vec(
-    const RefMat<T, N, d> samples ) const noexcept {
-    Mat<T, n_linear_feat, n_training_inst> linear_features;
-    for ( Index i{ 0 }; i < n_training_inst; ++i ) {
-        linear_features.col( i ) << construct_x_i<T, d, k, s, N>( samples, i );
-    }
-    return linear_features;
-}
-
-template <Weight T, Index N, Index d, Index k, Index s, Index p, bool C,
-          nonlinear_t Nonlin>
-[[nodiscard]] constexpr inline Mat<T, def_nonlinear_size<d, k, p, Nonlin>(),
-                                   N - s *( k - 1 )>
-NVAR<T, N, d, k, s, p, C, Nonlin>::construct_nonlinear_feature_vec(
-    const RefMat<T, d * k, N - s *( k - 1 )> lin_components ) const noexcept {
-    Mat<T, n_nonlinear_feat, n_training_inst> nonlinear_features;
-    for ( Index i{ 0 }; i < n_training_inst; ++i ) {
-        nonlinear_features.col( i )
-            << combinations_with_replacement<T, d, k, p>(
-                   lin_components.col( i ) );
-    }
-    return nonlinear_features;
-}
-
-template <Weight T, Index N, Index d, Index k, Index s, Index p, bool C,
-          nonlinear_t Nonlin>
-[[nodiscard]] constexpr inline Mat<T, def_total_size<d, k, p, Nonlin, C>(),
-                                   N - s *( k - 1 )>
-NVAR<T, N, d, k, s, p, C, Nonlin>::construct_total_feature_vec(
-    const RefMat<T, d * k, N - s *( k - 1 )> linear_feat,
-    const RefMat<T, def_nonlinear_size<d, k, p, Nonlin>(), N - s *( k - 1 )>
-            nonlinear_feat,
-    const T constant ) const noexcept {
-    Mat<T, n_feature_param, n_training_inst> total_features;
-    for ( Index i{ 0 }; i < n_training_inst; ++i ) {
-        if constexpr ( C ) {
-            total_features.col( i ) << linear_feat.col( i ),
-                nonlinear_feat.col( i ), constant;
-        }
-        else {
-            total_features.col( i ) << linear_feat.col( i ),
-                nonlinear_feat.col( i );
-        }
-    }
-    return total_features;
-}
-
-template <Weight T, Index N, Index d, Index k, Index s, Index p, bool C,
-          nonlinear_t Nonlin>
-[[nodiscard]] constexpr inline Mat<T, def_total_size<d, k, p, Nonlin, C>(),
-                                   N - s *( k - 1 )>
-NVAR<T, N, d, k, s, p, C, Nonlin>::construct_total_feature_vec(
-    const RefMat<T, N, d> samples, const T constant ) const noexcept {
-    const Mat<T, n_linear_feat, n_training_inst> linear_feats{
-        construct_linear_feature_vec( samples )
-    };
-    const Mat<T, n_nonlinear_feat, n_training_inst> nonlinear_feats{
-        construct_nonlinear_feature_vec( linear_feats )
-    };
-    return construct_total_feature_vec( linear_feats, nonlinear_feats,
-                                        constant );
-}
-
-template <Weight T, Index N, Index d, Index k, Index s, Index p, bool C,
-          nonlinear_t Nonlin>
-[[nodiscard]] constexpr inline Mat<T, d, def_total_size<d, k, p, Nonlin, C>()>
-NVAR<T, N, d, k, s, p, C, Nonlin>::ridge_regress(
-    const RefMat<T, d, N - s *( k - 1 )> labels_transposed,
-    const RefMat<T, def_total_size<d, k, p, Nonlin, C>(), N - s *( k - 1 )>
-        total_feature_vec ) noexcept {
-    const auto tikhonov_matrix{
-        m_ridge_param * Mat<T, n_feature_param, n_feature_param>::Identity()
-    };
-    const auto feature_vec_product{ total_feature_vec
-                                    * total_feature_vec.transpose() };
-    const auto factor{ ( feature_vec_product + tikhonov_matrix )
-                           .completeOrthogonalDecomposition()
-                           .pseudoInverse() };
-
-    return labels_transposed * total_feature_vec.transpose() * factor;
-}
-
 template <Weight T, nonlinear_t Nonlin = nonlinear_t::poly>
-class NVAR_runtime
+class NVAR
 {
     private:
     // Important NVAR state variables
@@ -212,10 +52,10 @@ class NVAR_runtime
                    const ConstRefMat<T> total_feature_vec ) noexcept;
 
     public:
-    NVAR_runtime( const ConstRefMat<T> samples, const ConstRefMat<T> labels,
-                  const Index d, const Index k, const Index s, const Index p,
-                  const T ridge_param, const bool use_constant,
-                  const T constant = T{ 0. } ) :
+    NVAR( const ConstRefMat<T> samples, const ConstRefMat<T> labels,
+          const Index d, const Index k, const Index s, const Index p,
+          const T ridge_param, const bool use_constant,
+          const T constant = T{ 0. } ) :
         m_d( d ),
         m_k( k ),
         m_s( s ),
@@ -319,7 +159,7 @@ class NVAR_runtime
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::construct_linear_vec(
+NVAR<T, Nonlin>::construct_linear_vec(
     const ConstRefMat<T> samples ) const noexcept {
     Mat<T> linear_features( m_n_linear_feat, m_n_training_inst );
     for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
@@ -330,7 +170,7 @@ NVAR_runtime<T, Nonlin>::construct_linear_vec(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::construct_nonlinear_vec(
+NVAR<T, Nonlin>::construct_nonlinear_vec(
     const ConstRefMat<T> linear_features ) const noexcept {
     Mat<T> nonlinear_features{ Mat<T>::Zero( m_n_nonlinear_feat,
                                              m_n_training_inst ) };
@@ -349,7 +189,7 @@ NVAR_runtime<T, Nonlin>::construct_nonlinear_vec(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Vec<T>
-NVAR_runtime<T, Nonlin>::construct_nonlinear_inst(
+NVAR<T, Nonlin>::construct_nonlinear_inst(
     const ConstRefVec<T> linear_feature ) const noexcept {
     Vec<T> nonlinear_feature{ Vec<T>::Zero( m_n_nonlinear_feat ) };
     if constexpr ( Nonlin == nonlinear_t::exp ) {
@@ -365,7 +205,7 @@ NVAR_runtime<T, Nonlin>::construct_nonlinear_inst(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::construct_total_vec(
+NVAR<T, Nonlin>::construct_total_vec(
     const ConstRefMat<T> linear_features,
     const ConstRefMat<T> nonlinear_features ) const noexcept {
     Mat<T> total_features{ Mat<T>::Zero( m_n_total_feat, m_n_training_inst ) };
@@ -386,7 +226,7 @@ NVAR_runtime<T, Nonlin>::construct_total_vec(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::construct_total_vec(
+NVAR<T, Nonlin>::construct_total_vec(
     const ConstRefMat<T> samples ) const noexcept {
     const auto linear_features{ construct_linear_vec( samples ) };
     const auto nonlinear_features{ construct_nonlinear_vec( linear_features ) };
@@ -395,7 +235,7 @@ NVAR_runtime<T, Nonlin>::construct_total_vec(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::ridge_regress(
+NVAR<T, Nonlin>::ridge_regress(
     const ConstRefMat<T> labels,
     const ConstRefMat<T> total_feature_vec ) noexcept {
     const auto feature_vec_product{ total_feature_vec
@@ -431,7 +271,7 @@ NVAR_runtime<T, Nonlin>::ridge_regress(
 
 template <Weight T, nonlinear_t Nonlin>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR_runtime<T, Nonlin>::forecast(
+NVAR<T, Nonlin>::forecast(
     const ConstRefMat<T> warmup, const ConstRefMat<T> labels,
     const std::vector<Index> & pass_through ) const noexcept {
     [[maybe_unused]] const Index max_idx{ *std::max_element(

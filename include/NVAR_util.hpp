@@ -71,18 +71,6 @@ mat_shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
 enum class nonlinear_t { poly, exp, polyexp };
 
 // Calculates factorial for 0 <= n <= 20
-template <Index N>
-consteval inline Index
-factorial_20() {
-    static_assert( N >= 0, "Attempted -ve factorial." );
-    static_assert( N < 21, "N! for N > 20 causes overflow." );
-    if constexpr ( N == Index{ 0 } || N == Index{ 1 } ) {
-        return Index{ 1 };
-    }
-    Index result{ 1 };
-    for ( Index i{ 1 }; i <= N; ++i ) { result *= i; }
-    return result;
-}
 
 constexpr inline Index
 factorial_20( const Index N ) {
@@ -98,26 +86,6 @@ factorial_20( const Index N ) {
     Index val{ 1 };
     for ( Index i{ 1 }; i <= N; ++i ) { val *= i; }
     return val;
-}
-
-template <Index d, Index k, Index p, nonlinear_t Nonlinearity>
-consteval inline Index
-def_nonlinear_size() {
-    if ( Nonlinearity == nonlinear_t::exp ) {
-        return d * k;
-    }
-    else {
-        if constexpr ( p == 0 ) {
-            return Index{ 0 };
-        }
-        static_assert( d > 0 && k > 0 && p > 0,
-                       "NVAR params d, k, & p must be > 0. " );
-        /*
-         * Nonlinear size given by: (d * k + p - 1)! / (p!(d * k - 1)!)
-         */
-        return factorial_20<d * k + p - 1>()
-               / ( factorial_20<p>() * factorial_20<d * k - 1>() );
-    }
 }
 
 template <nonlinear_t Nonlinearity>
@@ -136,70 +104,12 @@ def_nonlinear_size( const Index d, const Index k, const Index p ) {
     }
 }
 
-template <Index d, Index k, Index p, nonlinear_t Nonlinearity,
-          bool constant = true>
-consteval inline Index
-def_total_size() {
-    if constexpr ( Nonlinearity == nonlinear_t::exp ) {
-        return 2 * d * k + ( constant ? 1 : 0 );
-    }
-    else {
-        static_assert( d > 0 && k > 0 && p >= 0,
-                       "NVAR params d, k, must be > 0. p >= 0." );
-        return def_nonlinear_size<d, k, p, Nonlinearity>() + d * k
-               + ( constant ? 1 : 0 );
-    }
-}
-
 template <nonlinear_t Nonlinearity>
 constexpr inline Index
 def_total_size( const Index d, const Index k, const Index p,
                 const bool constant = true ) {
     return def_nonlinear_size<Nonlinearity>( d, k, p ) + d * k
            + ( constant ? 1 : 0 );
-}
-
-template <Weight T, Index d, Index k, Index p>
-constexpr inline Vec<T, def_nonlinear_size<d, k, p, nonlinear_t::poly>()>
-combinations_with_replacement( const ConstRefVec<T, d * k> v ) {
-    if constexpr ( p == 0 ) {
-        return Vec<T, 0>{};
-    }
-
-    constexpr Index result_sz{
-        def_nonlinear_size<d, k, p, nonlinear_t::poly>()
-    };
-    constexpr Index n{ d * k };
-    Index           count{ 0 };
-
-    std::vector<Index> indices( p, 0 );
-    Vec<T, result_sz>  result{ Vec<T, result_sz>::Ones() };
-
-    while ( true ) {
-        // Add current result
-        for ( const auto i : indices ) { result[count] *= v[i]; }
-        count++;
-
-        // Find rightmost index to increment
-        auto j = p - 1;
-        while ( j >= 0 && indices[static_cast<std::size_t>( j )] == n - 1 ) {
-            j--;
-        }
-
-        // If no index found, break out
-        if ( j < 0 ) {
-            break;
-        }
-
-        // Increment found index & adjust subsequent
-        indices[static_cast<std::size_t>( j )]++;
-        for ( Index i{ j + 1 }; i < p; ++i ) {
-            indices[static_cast<std::size_t>( i )] =
-                indices[static_cast<std::size_t>( i - 1 )];
-        }
-    }
-
-    return result;
 }
 
 template <Weight T>
@@ -258,15 +168,6 @@ ridge( const Mat<T> A, const Mat<T> y, const T alpha ) {
     return y.transpose() * factor;
 }
 
-template <Weight T, Index d, Index k, Index s, Index N>
-constexpr inline Mat<T, k, d>
-construct_x_i( const ConstRefMat<T, N, d> inputs, const Index i ) {
-    assert( i + ( k - 1 ) * s < N );
-    return inputs( Eigen::seqN( i + ( k - 1 ) * s, Eigen::fix<k>,
-                                Eigen::fix<-s>() ),
-                   Eigen::placeholders::all )
-        .template reshaped<Eigen::RowMajor>();
-}
 template <Weight T>
 constexpr inline Vec<T>
 construct_x_i( const ConstRefMat<T> inputs, const Index i, const Index k,

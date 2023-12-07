@@ -128,7 +128,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                               shape_str<double, -1, -1>( test_labels ) );
 
     std::cout << "Training NVAR.\n";
-    NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
+    NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
         alpha, use_const, constant );
 
@@ -182,7 +182,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     // Building NVAR
     std::cout << "Building NVAR.\n";
-    NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
+    NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
         alpha, use_const, double{ constant } );
 
@@ -258,9 +258,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         doublescroll_test_pair;
 
     // Create NVAR model
-    NVAR::NVAR_runtime<double> doublescroll_test(
-        doublescroll_train_samples, doublescroll_train_labels, d2, k2, s2, p2,
-        alpha, use_const, constant );
+    NVAR::NVAR<double> doublescroll_test( doublescroll_train_samples,
+                                          doublescroll_train_labels, d2, k2, s2,
+                                          p2, alpha, use_const, constant );
 
     // Forecast
     auto doublescroll_forecast{ doublescroll_test.forecast(
@@ -355,9 +355,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             // Train NVAR
             std::cout << "Training NVAR..." << std::endl;
 
-            NVAR::NVAR_runtime<double> nvar( train_samples.rightCols( d ),
-                                             train_labels.rightCols( d ), d, k,
-                                             s, p, alpha, use_const, constant );
+            NVAR::NVAR<double> nvar( train_samples.rightCols( d ),
+                                     train_labels.rightCols( d ), d, k, s, p,
+                                     alpha, use_const, constant );
 
             std::cout << "Done." << std::endl;
 
