@@ -78,9 +78,13 @@ fig, axs = plt.subplots(
 
 for fkey, lkey, (ax1, ax2) in zip(forecast_keys, label_keys, axs):
     # Plot reconstruction of training data
+
+    ax1min = min(reconstruction_data[lkey])
+    ax1max = max(reconstruction_data[lkey])
+
     n = len(reconstruction_data[fkey])
     ax1.plot(
-        reconstruction_labels["t"][-n:],
+        #reconstruction_labels["t"][-n:],
         reconstruction_data[fkey],
         label=fkey,
         linestyle="",
@@ -89,19 +93,20 @@ for fkey, lkey, (ax1, ax2) in zip(forecast_keys, label_keys, axs):
         color="r",
     )
     ax1.plot(
-        reconstruction_labels["t"][-n:],
+        #reconstruction_labels["t"][-n:],
         reconstruction_data[lkey],
         label="True Signal",
         linestyle="-",
         linewidth=0.7,
         color="k",
     )
+    ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
     ax1.set_title(f"Reconstructed Training Data: {fkey}")
     ax1.legend()
 
     # Plot forecasted data
-    ax2_max = min(100, max(forecast_data[fkey]))
-    ax2_min = max(-100, min(forecast_data[fkey]))
+    ax2min = min(forecast_data[lkey])
+    ax2max = max(forecast_data[lkey])
     ax2.plot(
         times,
         forecast_data[fkey],
@@ -119,7 +124,7 @@ for fkey, lkey, (ax1, ax2) in zip(forecast_keys, label_keys, axs):
         linewidth=0.7,
         color="k",
     )
-    ax2.set_ylim(ax2_min, ax2_max)
+    ax2.set_ylim(ax2min - 0.1 * abs(ax2min), ax2max + 0.1 * abs(ax2max))
     ax2.set_title(f"Forecast: {fkey}")
     ax2.legend()
 

@@ -62,37 +62,45 @@ shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-    const std::filesystem::path train_path{
-        //"../data/train_data/17_0_-1_10000_0_1_1.csv"
-        "../data/train_data/21_0_-1_21000_0_1_1.csv"
+    // const std::filesystem::path train_path{
+    //     //"../data/train_data/17_0_-1_10000_0_1_1.csv"
+    //     "../data/train_data/21_0_-1_21000_0_1_1.csv"
+    // };
+    // const std::filesystem::path test_path{
+    //     "../data/test_data/21_1_-1_189000_0_1_1.csv"
+    // };
+
+    // const auto train_details = NVAR::parse_filename( train_path.string() );
+    // const auto test_details = NVAR::parse_filename( test_path.string() );
+
+    // const auto train_csv{ NVAR::SimpleCSV(
+    //     /*filename=*/train_path,
+    //     /*col_titles=*/true,
+    //     /*skip_header=*/1,
+    //     /*delim*/ ",",
+    //     /*max_line_size=*/256 ) };
+    // const auto test_csv{ NVAR::SimpleCSV(
+    //     /*filename=*/test_path,
+    //     /*col_titles=*/true,
+    //     /*skip_header=*/1,
+    //     /*delim=*/",",
+    //     /*max_line_size=*/256 ) };
+
+    // const NVAR::Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
+    // const NVAR::Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
+
+    const std::filesystem::path data_path{
+        "../data/train_test_src/17_measured.csv"
     };
-    const std::filesystem::path test_path{
-        "../data/test_data/21_1_-1_189000_0_1_1.csv"
-    };
-
-    const auto train_details = NVAR::parse_filename( train_path.string() );
-    const auto test_details = NVAR::parse_filename( test_path.string() );
-
-    const auto train_csv{ NVAR::SimpleCSV(
-        /*filename=*/train_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim*/ ",",
-        /*max_line_size=*/256 ) };
-    const auto test_csv{ NVAR::SimpleCSV(
-        /*filename=*/test_path,
-        /*col_titles=*/true,
-        /*skip_header=*/1,
-        /*delim=*/",",
-        /*max_line_size=*/256 ) };
-
-    const NVAR::Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    const NVAR::Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
+    const auto data_csv{ NVAR::SimpleCSV(
+        /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
+        /*delim*/ ",", /*max_line_size*/ 256 ) };
+    const auto data_pool{ data_csv.atv( 0, 0 ) };
 
 #ifdef FORECAST
     const bool        use_const{ true };
-    const double      alpha{ 0.1 }, constant{ 0.1 };
-    const NVAR::Index d{ 2 }, k{ 3 }, s{ 1 }, p{ 3 }, data_stride{ 3 };
+    const double      alpha{ 5 }, constant{ 0.1 };
+    const NVAR::Index d{ 2 }, k{ 5 }, s{ 3 }, p{ 3 }, data_stride{ 4 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
                               use_const ? "true" : "false", constant );
@@ -102,10 +110,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
 
-    const auto [train_samples, train_labels] = NVAR::train_split<double>(
-        train_data_pool, feature_shape, k, s, data_stride );
-    const auto [test_warmup, test_labels] = NVAR::test_split<double>(
-        test_data_pool, feature_shape, k, s, data_stride );
+    // const auto [train_samples, train_labels] = NVAR::train_split<double>(
+    //     train_data_pool, feature_shape, k, s, data_stride );
+    // const auto [test_warmup, test_labels] = NVAR::test_split<double>(
+    //     test_data_pool, feature_shape, k, s, data_stride );
+
+    const auto [train_pair, test_pair] = NVAR::data_split<double>(
+        data_pool, 0.75, feature_shape, k, s, data_stride );
+    const auto [train_samples, train_labels] = train_pair;
+    const auto [test_warmup, test_labels] = test_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
                               shape_str<double, -1, -1>( train_samples ),
@@ -114,13 +127,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                               shape_str<double, -1, -1>( test_warmup ),
                               shape_str<double, -1, -1>( test_labels ) );
 
-    std::cout << std::format( "Eigen3 vesion: {}.{}.{}\n", EIGEN_WORLD_VERSION,
-                              EIGEN_MAJOR_VERSION, EIGEN_MINOR_VERSION );
-
     std::cout << "Training NVAR.\n";
     NVAR::NVAR_runtime<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        0.001, true, double{ 0.1 } );
+        alpha, use_const, constant );
 
 
     std::cout << "Forecasting.\n";
@@ -232,7 +242,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const bool        use_const{ false };
     const NVAR::Index d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
-    const double      alpha{ 2.5E-6 }, constant{ 1 };
+    const double      alpha{ 0.0005 }, constant{ 1 };
     std::cout << std::format(
         "doublescroll_train_data: {}\n",
         NVAR::mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
@@ -269,14 +279,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto base_path{ std::filesystem::absolute(
         std::filesystem::current_path() / ".." ) };
 
-    const std::vector<std::string> files{ "a2t11", "a4t15",
-                                          "a6t12", /*"a6t38",*/
+    const std::vector<std::string> files{ "a2t11", "a4t15", "a6t12", "a6t38",
                                           "a8t19" };
     std::vector<std::string>       results_files;
 
     const bool        use_const{ true };
     const double      alpha{ 0.1 }, constant{ 1 };
-    const NVAR::Index d{ 2 }, k{ 5 }, s{ 2 }, p{ 3 }, data_stride{ 5 },
+    const NVAR::Index d{ 2 }, k{ 5 }, s{ 20 }, p{ 5 }, data_stride{ 5 },
         delay{ 1 };
     std::cout << std::format( "data_stride: {}, delay: {}\n", data_stride,
                               delay );
@@ -306,6 +315,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         if ( decompress_result_code == 0 /* Success code */ ) {
             std::cout << "Successful decompress" << std::endl;
             // Load data
+            std::cout << "Loading csv data." << std::endl;
             // clang-format off
             const auto csv{ NVAR::SimpleCSV(
                 /*filename=*/write_path,
@@ -315,6 +325,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                 /*max_line_size=*/256 )
             };
             // clang-format on
+            std::cout << "Loading csv into matrix." << std::endl;
             const NVAR::Mat<double> full_data{ csv.atv<double>( 0, 0 ) };
 
             // Split data
@@ -323,7 +334,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             const NVAR::FeatureVecShape shape{ { 0, 0 }, { 1, 0 }, { 2, 0 } };
 
             const auto [train_pair, test_pair] = NVAR::data_split<double>(
-                /* data */ full_data, /* train_test_ratio */ 0.5,
+                /* data */ full_data, /* train_test_ratio */ 0.75,
                 /* shape */ shape,
                 /* k */ k,
                 /* s */ s, /* stride */ data_stride );
@@ -386,6 +397,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             NVAR::Mat<double> results( forecast.rows(),
                                        test_labels.cols() + forecast.cols() );
 
+            std::cout << std::format(
+                "test_labels: {}, forecast: {}\n",
+                NVAR::mat_shape_str<double, -1, -1>( test_labels ),
+                NVAR::mat_shape_str<double, -1, -1>( forecast ) );
             std::cout << std::format(
                 "results: {}\n",
                 NVAR::mat_shape_str<double, -1, -1>( results ) );

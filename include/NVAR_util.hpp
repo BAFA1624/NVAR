@@ -193,7 +193,7 @@ combinations_with_replacement( const ConstRefVec<T, d * k> v ) {
 
         // Increment found index & adjust subsequent
         indices[static_cast<std::size_t>( j )]++;
-        for ( Index i{ j + 1 }; i < k; ++i ) {
+        for ( Index i{ j + 1 }; i < p; ++i ) {
             indices[static_cast<std::size_t>( i )] =
                 indices[static_cast<std::size_t>( i - 1 )];
         }
@@ -235,7 +235,7 @@ combinations_with_replacement( const ConstRefVec<T> v, const Index d,
 
         // Increment found index & adjust subsequent
         indices[static_cast<std::size_t>( j )]++;
-        for ( Index i{ j + 1 }; i < k; ++i ) {
+        for ( Index i{ j + 1 }; i < p; ++i ) {
             indices[static_cast<std::size_t>( i )] =
                 indices[static_cast<std::size_t>( i - 1 )];
         }
@@ -255,8 +255,6 @@ ridge( const Mat<T> A, const Mat<T> y, const T alpha ) {
         s.cwiseQuotient( ( s.array().square() + alpha ).matrix() ).asDiagonal();
     const auto factor = svd.matrixV().leftCols( r ) * D
                         * svd.matrixU().transpose().topRows( r );
-    std::cout << std::format( "ridge_factor: ({}, {})\n", factor.rows(),
-                              factor.cols() );
     return y.transpose() * factor;
 }
 
@@ -364,6 +362,7 @@ test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
 
         test_warmup.col( i ) =
             data( Eigen::seq( offset, offset + warmup_offset ), data_col );
+
 
         test_labels.col( i ) =
             data( Eigen::seq( offset + warmup_offset + 1,

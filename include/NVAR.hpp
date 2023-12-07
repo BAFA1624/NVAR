@@ -246,11 +246,13 @@ class NVAR_runtime
         const Mat<T> total_features{ construct_total_vec(
             linear_features, nonlinear_features ) };
 
-        std::cout << std::format( "m_n_training_inst: {}, total_features: {}\n",
-                                  m_n_training_inst,
-                                  mat_shape_str<T, -1, -1>( total_features ) );
-        // std::cout << total_features.leftCols( 10 ) << "\n";
-        // std::cout << "Performing ridge regression.\n";
+        // std::cout << std::format( "m_n_training_inst: {}, total_features:
+        // {}\n",
+        //                           m_n_training_inst,
+        //                           mat_shape_str<T, -1, -1>( total_features )
+        //                           );
+        //  std::cout << total_features.leftCols( 10 ) << "\n";
+        //  std::cout << "Performing ridge regression.\n";
 #ifdef TARGET_DIFFERENCE
         m_w_out = ridge_regress( labels - samples, total_features );
 #else
@@ -296,8 +298,9 @@ class NVAR_runtime
             reproduced.row( c ) += reproduced_differences.row( c );
         }
     #endif
-        std::cout << std::format( "reproduced: ({}, {})\n", reproduced.rows(),
-                                  reproduced.cols() );
+        // std::cout << std::format( "reproduced: ({}, {})\n",
+        // reproduced.rows(),
+        //                           reproduced.cols() );
 
         Mat<T> reconstructed( reproduced.rows(), reproduced.cols() * 2 );
         reconstructed << reproduced, labels;
@@ -397,32 +400,33 @@ NVAR_runtime<T, Nonlin>::ridge_regress(
     const ConstRefMat<T> total_feature_vec ) noexcept {
     const auto feature_vec_product{ total_feature_vec
                                     * total_feature_vec.transpose() };
-    std::cout << "feature vec det: " << feature_vec_product.determinant()
-              << std::endl;
+    // std::cout << "feature vec det: " << feature_vec_product.determinant()
+    //           << std::endl;
     const auto tikhonov_matrix{
         m_ridge_param * Mat<T>::Identity( m_n_total_feat, m_n_total_feat )
     };
-    std::cout << "tikhonov_matrix det: " << tikhonov_matrix.determinant()
-              << std::endl;
+    // std::cout << "tikhonov_matrix det: " << tikhonov_matrix.determinant()
+    //           << std::endl;
 
-    std::cout << std::format( "feature_vec: ({}, {})\n",
-                              feature_vec_product.rows(),
-                              feature_vec_product.cols() );
-    std::cout << std::format( "tikhonov_matrix: ({}, {})\n",
-                              tikhonov_matrix.rows(), tikhonov_matrix.cols() );
+    // std::cout << std::format( "feature_vec: ({}, {})\n",
+    //                           feature_vec_product.rows(),
+    //                           feature_vec_product.cols() );
+    // std::cout << std::format( "tikhonov_matrix: ({}, {})\n",
+    //                           tikhonov_matrix.rows(), tikhonov_matrix.cols()
+    //                           );
 
     // L2 regularization adapts linear regression to ill-posed problems
     const auto sum{ feature_vec_product + tikhonov_matrix };
     const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
 
-    std::cout << std::format( "labels: {}, factor: {}, total_feature_vec: {}\n",
-                              mat_shape_str<T, -1, -1>( labels ),
-                              mat_shape_str<T, -1, -1>( factor ),
-                              mat_shape_str<T, -1, -1>( total_feature_vec ) );
+    // std::cout << std::format( "labels: {}, factor: {}, total_feature_vec:
+    // {}\n",
+    //                           mat_shape_str<T, -1, -1>( labels ),
+    //                           mat_shape_str<T, -1, -1>( factor ),
+    //                           mat_shape_str<T, -1, -1>( total_feature_vec )
+    //                           );
 
-    const auto result{ labels.transpose()
-                       * ( factor * total_feature_vec ).transpose() };
-    return result;
+    return labels.transpose() * ( factor * total_feature_vec ).transpose();
 }
 
 template <Weight T, nonlinear_t Nonlin>
@@ -436,44 +440,25 @@ NVAR_runtime<T, Nonlin>::forecast(
         pass_through.cbegin(), pass_through.cend() ) };
     assert( max_idx < warmup.cols() && min_idx >= 0 );
 
-    const bool show{ true };
-    std::cout << std::format( "Starting forecast.\n" );
-
     const Index N{ labels.rows() };
     Mat<T>      result{ Mat<T>::Zero( N, m_d ) };
-    std::cout << std::format( "result: {}\n",
-                              mat_shape_str<T, -1, -1>( result ) );
-    RowVec<T> new_val( 2 );
-    std::cout << std::format( "new_val: {}\n",
-                              mat_shape_str<T, -1, -1>( new_val ) );
+    RowVec<T>   new_val( 2 );
 #ifdef TARGET_DIFFERENCE
     Mat<T> prev_value{ warmup.row( warmup.rows() - 1 ) };
 #endif
     Mat<T> samples = warmup;
-    std::cout << std::format( "samples: {}, expected: ({}, {})\n",
-                              mat_shape_str<T, -1, -1>( samples ),
-                              m_s * ( m_k - 1 ), m_d );
 #ifdef WRITE_FEATURES
     Mat<T> forecast_features( m_n_total_feat, N );
 #endif
 
     for ( Index i{ 0 }; i < N; ++i ) {
         Vec<T> lin_feat = construct_x_i<T>( samples, m_k, m_s );
-        if ( show ) {
-            std::cout << std::format( "lin_feat: {}\n",
-                                      mat_shape_str<T, -1, -1>( lin_feat ) );
-        }
+
         Vec<T> nonlin_feat = construct_nonlinear_inst( lin_feat );
-        if ( show ) {
-            std::cout << std::format( "nonlin_feat: {}\n",
-                                      mat_shape_str<T, -1, -1>( nonlin_feat ) );
-        }
+
         Vec<T> total_feat{ Vec<T>::Zero(
             def_total_size<Nonlin>( m_d, m_k, m_p, m_use_constant ) ) };
-        if ( show ) {
-            std::cout << std::format( "total_feat: {}\n",
-                                      mat_shape_str<T, -1, -1>( total_feat ) );
-        }
+
         if ( m_use_constant ) {
             total_feat << lin_feat, nonlin_feat, m_c;
         }
@@ -486,34 +471,13 @@ NVAR_runtime<T, Nonlin>::forecast(
 #ifdef TARGET_DIFFERENCE
         new_val = prev_value + ( m_w_out * total_feat ).transpose();
 #else
-        if ( show ) {
-            std::cout << std::format(
-                "(m_w_out * total_feat).transpose(): {}\n",
-                mat_shape_str<T, -1, -1>(
-                    ( m_w_out * total_feat ).transpose() ) );
-        }
         new_val = ( m_w_out * total_feat ).transpose();
 #endif
         for ( const auto idx : pass_through ) {
-            if ( show ) {
-                std::cout << "Replacing " << idx << " ";
-            }
             new_val[idx] = labels( i, idx );
         }
-        if ( show ) {
-            std::cout << std::endl;
-            std::cout << std::format(
-                "result.row({}): {}\n", i,
-                mat_shape_str<T, -1, -1>( result.row( i ) ) );
-        }
+
         result.row( i ) << new_val;
-        if ( show ) {
-            std::cout << std::format( "cycle_inputs: {}\n",
-                                      mat_shape_str<T, -1, -1>( cycle_inputs<T>(
-                                          samples, result.row( i ) ) ) );
-            std::cout << std::format( "samples: {}\n",
-                                      mat_shape_str<T, -1, -1>( samples ) );
-        }
         samples = cycle_inputs<T>( samples, result.row( i ) );
 #ifdef TARGET_DIFFERENCE
         prev_value << result.row( i );
@@ -526,12 +490,6 @@ NVAR_runtime<T, Nonlin>::forecast(
     SimpleCSV::write<T>( feature_path,
                          forecast_features.leftCols( WRITE_FEATURES ), {} );
 #endif
-
-
-    std::cout << std::format( "labels: {}, forecast result: {}\n",
-                              mat_shape_str<T, -1, -1>( labels ),
-                              mat_shape_str<T, -1, -1>( result ) );
-
     return result;
 }
 
