@@ -99,8 +99,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
 #ifdef FORECAST
     const bool        use_const{ true };
-    const double      alpha{ 5 }, constant{ 0.1 };
-    const NVAR::Index d{ 2 }, k{ 5 }, s{ 3 }, p{ 3 }, data_stride{ 4 };
+    const double      alpha{ 0.1 }, constant{ 0.1 };
+    const NVAR::Index d{ 2 }, k{ 1 }, s{ 5 }, p{ 3 }, data_stride{ 4 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
                               use_const ? "true" : "false", constant );
