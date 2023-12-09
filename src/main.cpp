@@ -130,7 +130,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Training NVAR.\n";
     NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        alpha, use_const, constant );
+        alpha, use_const, constant, true, { "I", "V" },
+        "../data/forecast_data/tmp.csv" );
 
 
     std::cout << "Forecasting.\n";
@@ -184,7 +185,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Building NVAR.\n";
     NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        alpha, use_const, double{ constant } );
+        alpha, use_const, double{ constant }, true,
+        { "V_(n)", "V_(n-1)", "I_(n)" }, "../data/forecast_data/tmp.csv" );
 
     std::cout << "Forecasting.\n";
     auto forecast{ test.forecast( test_warmup.rightCols( d ),
@@ -258,9 +260,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         doublescroll_test_pair;
 
     // Create NVAR model
-    NVAR::NVAR<double> doublescroll_test( doublescroll_train_samples,
-                                          doublescroll_train_labels, d2, k2, s2,
-                                          p2, alpha, use_const, constant );
+    NVAR::NVAR<double> doublescroll_test(
+        doublescroll_train_samples, doublescroll_train_labels, d2, k2, s2, p2,
+        alpha, use_const, constant, true, { "v1", "v2", "I" },
+        "../data/forecast_data/doublescroll_reconstruct.csv" );
 
     // Forecast
     auto doublescroll_forecast{ doublescroll_test.forecast(
@@ -355,9 +358,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             // Train NVAR
             std::cout << "Training NVAR..." << std::endl;
 
-            NVAR::NVAR<double> nvar( train_samples.rightCols( d ),
-                                     train_labels.rightCols( d ), d, k, s, p,
-                                     alpha, use_const, constant );
+            NVAR::NVAR<double> nvar(
+                train_samples.rightCols( d ), train_labels.rightCols( d ), d, k,
+                s, p, alpha, use_const, constant, true,
+                { "Vmembrane", "Istim" }, "../data/forecast_data/tmp.csv" );
 
             std::cout << "Done." << std::endl;
 
