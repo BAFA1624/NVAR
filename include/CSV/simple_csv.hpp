@@ -1,6 +1,6 @@
 #pragma once
 
-#include "NVAR_util.hpp"
+#include "NVAR/NVAR_util.hpp"
 
 #include <algorithm>
 #include <concepts>

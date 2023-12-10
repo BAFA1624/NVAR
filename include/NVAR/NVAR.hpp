@@ -1,7 +1,7 @@
 #pragma once
 
-#include "NVAR_util.hpp"
-#include "simple_csv.hpp"
+#include "CSV/simple_csv.hpp"
+#include "NVAR/NVAR_util.hpp"
 
 #include <filesystem>
 #include <format>

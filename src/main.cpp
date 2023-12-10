@@ -1,7 +1,7 @@
+#include "CSV/simple_csv.hpp"
 #include "Eigen/Dense"
-#include "NVAR.hpp"
+#include "NVAR/NVAR.hpp"
 #include "nlohmann/json.hpp"
-#include "simple_csv.hpp"
 
 #include <array>  //exec
 #include <cstdio> // exec
