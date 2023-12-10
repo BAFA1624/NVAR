@@ -1,6 +1,8 @@
 #pragma once
 
+#include "NVAR_nonlinear_constructor.hpp"
 #include "NVAR_pipe.hpp"
+#include "NVAR_solvers.hpp"
 #include "NVAR_util.hpp"
 #include "simple_csv.hpp"
 
@@ -25,6 +27,9 @@ class NVAR
     T      m_c;
     T      m_ridge_param;
     Mat<T> m_w_out;
+
+    // Indices used to generate nonlinear features
+    std::vector<std::vector<Index>> m_nonlinear_indices;
 
     // Data sizes
     Index m_n_training_inst;  // Number of training samples
@@ -180,7 +185,7 @@ NVAR<T, Nonlin, target_difference>::construct_nonlinear_vec(
     else {
         for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
             nonlinear_features.col( i ) << combinations_with_replacement<T>(
-                linear_features.col( i ), m_d, m_k, m_p );
+                linear_features.col( i ), m_d * m_k, m_p );
         }
     }
     return nonlinear_features;
@@ -197,7 +202,7 @@ NVAR<T, Nonlin, target_difference>::construct_nonlinear_inst(
     }
     else {
         nonlinear_feature =
-            combinations_with_replacement<T>( linear_feature, m_d, m_k, m_p );
+            combinations_with_replacement<T>( linear_feature, m_d * m_k, m_p );
     }
     return nonlinear_feature;
 }
