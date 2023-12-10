@@ -1,7 +1,7 @@
 #include "CSV/simple_csv.hpp"
 #include "Eigen/Dense"
 #include "NVAR/NVAR.hpp"
-#include "nlohmann/json.hpp"
+// #include "nlohmann/json.hpp"
 
 #include <array>  //exec
 #include <cstdio> // exec
@@ -11,6 +11,8 @@
 // #include <stdexcept> // exec
 #include <string> // exec
 #include <tuple>
+
+using namespace UTIL;
 
 template <typename T>
 concept Printable = requires( const T x ) { std::cout << x; };
@@ -54,9 +56,9 @@ exec( const char * const cmd ) {
     return { 0, std_output };
 }
 
-template <typename T, NVAR::Index R = -1, NVAR::Index C = -1>
+template <typename T, Index R = -1, Index C = -1>
 std::string
-shape_str( const NVAR::ConstRefMat<T, R, C> m ) {
+shape_str( const ConstRefMat<T, R, C> m ) {
     return std::format( "({}, {})", m.rows(), m.cols() );
 }
 
@@ -70,8 +72,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     //     "../data/test_data/21_1_-1_189000_0_1_1.csv"
     // };
 
-    // const auto train_details = NVAR::parse_filename( train_path.string() );
-    // const auto test_details = NVAR::parse_filename( test_path.string() );
+    // const auto train_details = parse_filename( train_path.string() );
+    // const auto test_details = parse_filename( test_path.string() );
 
     // const auto train_csv{ CSV::SimpleCSV(
     //     /*filename=*/train_path,
@@ -86,8 +88,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     //     /*delim=*/",",
     //     /*max_line_size=*/256 ) };
 
-    // const NVAR::Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    // const NVAR::Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
+    // const Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
+    // const Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
@@ -98,25 +100,25 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
 #ifdef FORECAST
-    const bool        use_const{ true };
-    const double      alpha{ 0.1 }, constant{ 0.1 };
-    const NVAR::Index d{ 2 }, k{ 1 }, s{ 5 }, p{ 3 }, data_stride{ 4 };
+    const bool   use_const{ true };
+    const double alpha{ 77.5 }, constant{ 0.1 };
+    const Index  d{ 2 }, k{ 1 }, s{ 10 }, p{ 3 }, data_stride{ 4 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
                               use_const ? "true" : "false", constant );
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
-    const std::vector<std::tuple<NVAR::Index, NVAR::Index>> feature_shape{
-        { 0, 0 }, { 1, 0 }, { 2, 0 }
-    };
+    const std::vector<std::tuple<Index, Index>> feature_shape{ { 0, 0 },
+                                                               { 1, 0 },
+                                                               { 2, 0 } };
 
-    // const auto [train_samples, train_labels] = NVAR::train_split<double>(
+    // const auto [train_samples, train_labels] = train_split<double>(
     //     train_data_pool, feature_shape, k, s, data_stride );
-    // const auto [test_warmup, test_labels] = NVAR::test_split<double>(
+    // const auto [test_warmup, test_labels] = test_split<double>(
     //     test_data_pool, feature_shape, k, s, data_stride );
 
-    const auto [train_pair, test_pair] = NVAR::data_split<double>(
-        data_pool, 0.75, feature_shape, k, s, data_stride );
+    const auto [train_pair, test_pair] =
+        data_split<double>( data_pool, 0.75, feature_shape, k, s, data_stride );
     const auto [train_samples, train_labels] = train_pair;
     const auto [test_warmup, test_labels] = test_pair;
 
@@ -137,7 +139,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Forecasting.\n";
     auto forecast{ test.forecast( test_warmup.rightCols( d ),
                                   test_labels.rightCols( d ),
-                                  std::vector<NVAR::Index>{ 0 } ) };
+                                  std::vector<Index>{ 0 } ) };
 
     // Write results out
     std::cout << "Writing results.\n";
@@ -151,8 +153,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "{}, test_labels.cols(): {}\n",
         forecast_col_titles.size(), test_labels.cols(), forecast.cols(),
         test_labels.cols() );
-    NVAR::Mat<double> forecast_data( forecast.rows(),
-                                     forecast.cols() + test_labels.cols() );
+    Mat<double> forecast_data( forecast.rows(),
+                               forecast.cols() + test_labels.cols() );
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
@@ -166,10 +168,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
 #endif
 #ifdef CUSTOM_FEATURES
-    const bool        use_const{ true };
-    const double      alpha{ 0.001 }, constant{ 1 };
-    const NVAR::Index d{ 3 }, k{ 2 }, s{ 1 }, p{ 1 }, data_stride{ 3 },
-        delay{ 1 };
+    const bool   use_const{ true };
+    const double alpha{ 0.001 }, constant{ 1 };
+    const Index  d{ 3 }, k{ 2 }, s{ 1 }, p{ 1 }, data_stride{ 3 }, delay{ 1 };
     std::cout << std::format( "data_stride: {}, delay: {}\n", data_stride,
                               delay );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
@@ -177,12 +178,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
     // Feature shape of t_(n), V_(n), V_(n-1), I_(n)
-    const NVAR::FeatureVecShape feature_shape{
+    const FeatureVecShape feature_shape{
         { 0, 0 }, { 2, 0 }, { 2, delay }, { 1, 0 }
     };
 
     // Get train / test data
-    const auto [train_pair, test_pair] = NVAR::data_split<double>(
+    const auto [train_pair, test_pair] = data_split<double>(
         train_data_pool, test_data_pool, feature_shape, k, s, data_stride );
     const auto [train_samples, train_labels] = train_pair;
     const auto [test_warmup, test_labels] = test_pair;
@@ -197,7 +198,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Forecasting.\n";
     auto forecast{ test.forecast( test_warmup.rightCols( d ),
                                   test_labels.rightCols( d ),
-                                  std::vector<NVAR::Index>{ 1, 2 } ) };
+                                  std::vector<Index>{ 1, 2 } ) };
 
     // Write results out
     std::cout << "Writing results.\n";
@@ -211,8 +212,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "forecast_col_titles.size(): {},  forecast.cols(): "
         "{}, test_labels.cols(): {}\n",
         forecast_col_titles.size(), forecast.cols(), test_labels.cols() );
-    NVAR::Mat<double> forecast_data( forecast.rows(),
-                                     forecast.cols() + test_labels.cols() );
+    Mat<double> forecast_data( forecast.rows(),
+                               forecast.cols() + test_labels.cols() );
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
@@ -253,18 +254,17 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto doublescroll_train_data{ doublescroll_train_csv.atv<double>() };
     const auto doublescroll_test_data{ doublescroll_test_csv.atv<double>() };
 
-    const bool        use_const{ false };
-    const NVAR::Index d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
-    const double      alpha{ 0.0005 }, constant{ 1 };
+    const bool   use_const{ false };
+    const Index  d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
+    const double alpha{ 0.0005 }, constant{ 1 };
     std::cout << std::format(
         "doublescroll_train_data: {}\n",
-        NVAR::mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
-    const NVAR::FeatureVecShape feature_shape{ { 1, 0 }, { 2, 0 }, { 3, 0 } };
+        mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
+    const FeatureVecShape feature_shape{ { 1, 0 }, { 2, 0 }, { 3, 0 } };
 
     const auto [doublescroll_train_pair, doublescroll_test_pair] =
-        NVAR::data_split<double>( doublescroll_train_data,
-                                  doublescroll_test_data, feature_shape, k2,
-                                  s2 );
+        data_split<double>( doublescroll_train_data, doublescroll_test_data,
+                            feature_shape, k2, s2 );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
     const auto [doublescroll_warmup, doublescroll_test_labels] =
@@ -302,10 +302,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                           "a8t19" };
     std::vector<std::string>       results_files;
 
-    const bool        use_const{ true };
-    const double      alpha{ 0.1 }, constant{ 1 };
-    const NVAR::Index d{ 2 }, k{ 5 }, s{ 20 }, p{ 5 }, data_stride{ 5 },
-        delay{ 1 };
+    const bool   use_const{ true };
+    const double alpha{ 0.1 }, constant{ 1 };
+    const Index  d{ 2 }, k{ 5 }, s{ 20 }, p{ 5 }, data_stride{ 5 }, delay{ 1 };
     std::cout << std::format( "data_stride: {}, delay: {}\n", data_stride,
                               delay );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
@@ -345,14 +344,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             };
             // clang-format on
             std::cout << "Loading csv into matrix." << std::endl;
-            const NVAR::Mat<double> full_data{ csv.atv<double>( 0, 0 ) };
+            const Mat<double> full_data{ csv.atv<double>( 0, 0 ) };
 
             // Split data
             std::cout << "Splitting data..." << std::endl;
 
-            const NVAR::FeatureVecShape shape{ { 0, 0 }, { 1, 0 }, { 2, 0 } };
+            const FeatureVecShape shape{ { 0, 0 }, { 1, 0 }, { 2, 0 } };
 
-            const auto [train_pair, test_pair] = NVAR::data_split<double>(
+            const auto [train_pair, test_pair] = data_split<double>(
                 /* data */ full_data, /* train_test_ratio */ 0.75,
                 /* shape */ shape,
                 /* k */ k,
@@ -364,10 +363,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::cout << std::format(
                 "train_samples: {}\ntrain_labels: {}\ntest_warmup: "
                 "{}\ntest_labels: {}\n",
-                NVAR::mat_shape_str<double, -1, -1>( train_samples ),
-                NVAR::mat_shape_str<double, -1, -1>( train_labels ),
-                NVAR::mat_shape_str<double, -1, -1>( test_warmup ),
-                NVAR::mat_shape_str<double, -1, -1>( test_labels ) );
+                mat_shape_str<double, -1, -1>( train_samples ),
+                mat_shape_str<double, -1, -1>( train_labels ),
+                mat_shape_str<double, -1, -1>( test_warmup ),
+                mat_shape_str<double, -1, -1>( test_labels ) );
 
             std::cout << "Done." << std::endl;
 
@@ -394,8 +393,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::cout << "Writing result..." << std::endl;
             std::cout << std::format(
                 "forecast: {}, test_labels: {}\n",
-                NVAR::mat_shape_str<double, -1, -1>( forecast ),
-                NVAR::mat_shape_str<double, -1, -1>( test_labels ) );
+                mat_shape_str<double, -1, -1>( forecast ),
+                mat_shape_str<double, -1, -1>( test_labels ) );
 
             const std::filesystem::path forecast_path{
                 "../data/forecast_data"
@@ -414,16 +413,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::cout << std::format( "col_titles: {}", col_titles.size() );
             std::cout << "col_titles = " << col_titles << std::endl;
 
-            NVAR::Mat<double> results( forecast.rows(),
-                                       test_labels.cols() + forecast.cols() );
+            Mat<double> results( forecast.rows(),
+                                 test_labels.cols() + forecast.cols() );
 
             std::cout << std::format(
                 "test_labels: {}, forecast: {}\n",
-                NVAR::mat_shape_str<double, -1, -1>( test_labels ),
-                NVAR::mat_shape_str<double, -1, -1>( forecast ) );
+                mat_shape_str<double, -1, -1>( test_labels ),
+                mat_shape_str<double, -1, -1>( forecast ) );
             std::cout << std::format(
-                "results: {}\n",
-                NVAR::mat_shape_str<double, -1, -1>( results ) );
+                "results: {}\n", mat_shape_str<double, -1, -1>( results ) );
 
             results << test_labels, forecast;
 

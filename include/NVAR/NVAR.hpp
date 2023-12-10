@@ -10,6 +10,8 @@
 namespace NVAR
 {
 
+using namespace UTIL;
+
 template <Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
           bool target_difference = false>
 class NVAR
@@ -49,7 +51,7 @@ class NVAR
         const ConstRefMat<T> linear_features ) const noexcept;
     [[nodiscard]] constexpr inline Vec<T> construct_nonlinear_inst(
         const ConstRefVec<T> linear_features ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T> construct_total_vec(
+    [[nodiscard]] constexpr inline UTIL::Mat<T> construct_total_vec(
         const ConstRefMat<T> linear_features,
         const ConstRefMat<T> nonlinear_features ) const noexcept;
     [[nodiscard]] constexpr inline Mat<T>
@@ -151,24 +153,24 @@ class NVAR
         return m_w_out;
     }
 
-    [[nodiscard]] constexpr inline Mat<T>
+    [[nodiscard]] constexpr inline UTIL::Mat<T>
     forecast( const ConstRefMat<T> warmup, const ConstRefMat<T> labels,
               const std::vector<Index> & pass_through ) const noexcept;
 };
 
 template <Weight T, nonlinear_t Nonlin, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, target_difference>::construct_linear_vec(
-    const ConstRefMat<T> samples ) const noexcept {
-    Mat<T> linear_features( m_n_linear_feat, m_n_training_inst );
-    for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
+    const UTIL::ConstRefMat<T> samples ) const noexcept {
+    UTIL::Mat<T> linear_features( m_n_linear_feat, m_n_training_inst );
+    for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
         linear_features.col( i ) = construct_x_i<T>( samples, i, m_k, m_s );
     }
     return linear_features;
 }
 
 template <Weight T, nonlinear_t Nonlin, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, target_difference>::construct_nonlinear_vec(
     const ConstRefMat<T> linear_features ) const noexcept {
     Mat<T> nonlinear_features{ Mat<T>::Zero( m_n_nonlinear_feat,
@@ -249,7 +251,7 @@ NVAR<T, Nonlin, target_difference>::ridge_regress(
 }
 
 template <Weight T, nonlinear_t Nonlin, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, target_difference>::forecast(
     const ConstRefMat<T> warmup, const ConstRefMat<T> labels,
     const std::vector<Index> & pass_through ) const noexcept {
