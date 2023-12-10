@@ -112,19 +112,17 @@ def_total_size( const Index d, const Index k, const Index p,
            + ( constant ? 1 : 0 );
 }
 
-template <Weight T>
 constexpr inline std::vector<std::vector<Index>>
-combinations_with_replacement( const Index d, const Index k, const Index p ) {
+combinations_with_replacement( const Index n, const Index p ) {
     if ( p == 0 ) {
         return {};
     }
 
-    const Index        n{ d * k };
     Index              count{ 0 };
     std::vector<Index> indices( p, 0 );
 
     std::vector<std::vector<Index>> result(
-        def_nonlinear_size<nonlinear_t::poly>( d, k, p ) );
+        def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) );
 
     while ( true ) {
         // Add current set of indices
@@ -154,18 +152,17 @@ combinations_with_replacement( const Index d, const Index k, const Index p ) {
 
 template <Weight T>
 constexpr inline Vec<T>
-combinations_with_replacement( const ConstRefVec<T> v, const Index d,
-                               const Index k, const Index p ) {
+combinations_with_replacement( const ConstRefVec<T> v, const Index n,
+                               const Index p ) {
     if ( p == 0 ) {
         return Vec<T>{};
     }
 
-    const Index n{ d * k };
-    Index       count{ 0 };
+    Index count{ 0 };
 
     std::vector<Index> indices( static_cast<std::size_t>( p ), 0 );
     Vec<T>             result{ Vec<T>::Ones(
-        def_nonlinear_size<nonlinear_t::poly>( d, k, p ) ) };
+        def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) ) };
 
     while ( true ) {
         // Add current result
