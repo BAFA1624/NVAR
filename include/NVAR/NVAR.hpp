@@ -136,15 +136,13 @@ class NVAR
             reconstruction << regenerated, labels;
 
             // Write to file
-            if ( std::filesystem::directory_entry( m_reconstruction_path )
-                     .exists() ) {
-                CSV::SimpleCSV::write<T>( m_reconstruction_path, reconstruction,
-                                          m_col_titles );
-            }
-            else {
+            const auto write_success{ CSV::SimpleCSV::write<T>(
+                std::filesystem::absolute( m_reconstruction_path ),
+                reconstruction, m_col_titles ) };
+
+            if ( !write_success ) {
                 std::cerr << std::format(
-                    "Unable to write reconstruction data to path: {}\n",
-                    m_reconstruction_path.string() );
+                    "Unable to write reconstruction data.\n" );
             }
         }
     }

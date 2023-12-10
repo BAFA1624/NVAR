@@ -118,11 +118,11 @@ combinations_with_replacement( const Index n, const Index p ) {
         return {};
     }
 
-    Index              count{ 0 };
-    std::vector<Index> indices( p, 0 );
+    std::size_t        count{ 0 };
+    std::vector<Index> indices( static_cast<std::size_t>( p ), 0 );
 
-    std::vector<std::vector<Index>> result(
-        def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) );
+    std::vector<std::vector<Index>> result( static_cast<std::size_t>(
+        def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) ) );
 
     while ( true ) {
         // Add current set of indices
@@ -233,7 +233,7 @@ cycle_inputs( const ConstRefMat<T> prev_input,
     return result;
 }
 
-std::map<std::string, Index>
+inline std::map<std::string, Index>
 parse_filename( const std::string_view filename ) {
     const std::string re{
         "([\\d]+)_([01])_([-\\d]+)_([\\d+]+)_([01])_([\\d]+)_([\\d]+)\\.csv"
@@ -259,7 +259,7 @@ parse_filename( const std::string_view filename ) {
     return result;
 }
 
-std::filesystem::path
+inline std::filesystem::path
 get_filename( const std::vector<Index> & params ) {
     std::filesystem::path path{};
 
@@ -286,7 +286,7 @@ get_filename( const std::vector<Index> & params ) {
     return path /= ( filename + ".csv" );
 }
 
-std::filesystem::path
+inline std::filesystem::path
 get_filename( const std::map<std::string, Index> & file_params ) {
     const auto N{ file_params.at( "N" ) };
     const auto train_test{ file_params.at( "train_test" ) };
@@ -303,7 +303,7 @@ get_filename( const std::map<std::string, Index> & file_params ) {
 // get_metadata_filename( const std::map<char, Index> & hyperparams ) {}
 
 template <Weight T>
-DataPair<T>
+constexpr inline DataPair<T>
 train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
              const Index k, const Index s, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
@@ -371,7 +371,7 @@ test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
 }
 
 template <Weight T>
-std::tuple<DataPair<T>, DataPair<T>>
+constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> train_data, const ConstRefMat<T> test_data,
             const FeatureVecShape & shape, const Index k, const Index s,
             const Index stride = 1 ) {
@@ -380,7 +380,7 @@ data_split( const ConstRefMat<T> train_data, const ConstRefMat<T> test_data,
 }
 
 template <Weight T>
-std::tuple<DataPair<T>, DataPair<T>>
+constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> data, const double train_test_ratio,
             const FeatureVecShape & shape, const Index k, const Index s,
             const Index stride = 1 ) {

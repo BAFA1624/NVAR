@@ -83,13 +83,13 @@ class SimpleCSV
          const NVAR::Index col_offset = 0 ) const noexcept;
 
     template <typename T = double, NVAR::Index R = -1, NVAR::Index C = -1>
-    static void write( const std::filesystem::path      file,
-                       const NVAR::RefMat<T, R, C>      m,
-                       const std::vector<std::string> & titles = {} ) noexcept;
+    [[nodiscard]] static inline bool
+    write( const std::filesystem::path file, const NVAR::RefMat<T, R, C> m,
+           const std::vector<std::string> & titles = {} ) noexcept;
     template <typename T>
-    static void write( const std::filesystem::path      file,
-                       const NVAR::RefMat<T, -1, -1>    m,
-                       const std::vector<std::string> & titles = {} ) noexcept;
+    [[nodiscard]] static inline bool
+    write( const std::filesystem::path file, const NVAR::RefMat<T, -1, -1> m,
+           const std::vector<std::string> & titles = {} ) noexcept;
 
     [[nodiscard]] constexpr auto & rows() const noexcept { return m_rows; };
     [[nodiscard]] constexpr auto & cols() const noexcept { return m_cols; };
@@ -183,7 +183,7 @@ SimpleCSV::parse() noexcept {
             // Read values in
             NVAR::Index count{ 0 }; // Count to ensure no. cols is consistent
             for ( const auto & [i, value] : split_row ) {
-                m_data[i].push_back(
+                m_data[static_cast<std::size_t>( i )].push_back(
                     std::stod( std::string{ value.data(), value.size() } ) );
                 count++;
             }
@@ -266,7 +266,7 @@ SimpleCSV::atv( const NVAR::Index row_offset,
 }
 
 template <typename T, NVAR::Index R, NVAR::Index C>
-void
+inline bool
 SimpleCSV::write( const std::filesystem::path      file,
                   const NVAR::RefMat<T, R, C>      m,
                   const std::vector<std::string> & titles ) noexcept {
@@ -291,12 +291,17 @@ SimpleCSV::write( const std::filesystem::path      file,
             line.pop_back();
             fp << line << std::endl;
         }
+
+        return true;
     }
-    return;
+
+    std::cerr << std::format( "Unable to write to file: {}\n", file.string() );
+
+    return false;
 }
 
 template <typename T>
-void
+inline bool
 SimpleCSV::write( const std::filesystem::path      file,
                   const NVAR::RefMat<T, -1, -1>    m,
                   const std::vector<std::string> & titles ) noexcept {
@@ -317,8 +322,13 @@ SimpleCSV::write( const std::filesystem::path      file,
             line.pop_back();
             fp << line << std::endl;
         }
+
+        return true;
     }
-    return;
+
+    std::cerr << std::format( "Unable to write to file: {}.\n", file.string() );
+
+    return false;
 }
 
 }; // namespace CSV

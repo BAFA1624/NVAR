@@ -156,8 +156,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
-    CSV::SimpleCSV::write<double>( forecast_path, forecast_data,
-                                   forecast_col_titles );
+
+    const auto write_success{ CSV::SimpleCSV::write<double>(
+        forecast_path, forecast_data, forecast_col_titles ) };
+
+    if ( !write_success ) {
+        std::cerr << std::format( "Unable to write forecast data.\n" );
+    }
+
 #endif
 #ifdef CUSTOM_FEATURES
     const bool        use_const{ true };
@@ -210,8 +216,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
-    CSV::SimpleCSV::write<double>( forecast_path, forecast_data,
-                                   forecast_col_titles );
+
+    const auto write_success{ CSV::SimpleCSV::write<double>(
+        forecast_path, forecast_data, forecast_col_titles ) };
+
+    if ( !write_success ) {
+        std::cerr << std::format( "Unable to write forecast data.\n" );
+    }
 
 #endif
 #ifdef DOUBLESCROLL
@@ -275,8 +286,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "doublescroll_predict.csv"
     };
     const std::vector<std::string> col_titles{ "v1", "v2", "I" };
-    CSV::SimpleCSV::write<double>( doublescroll_forecast_path,
-                                   doublescroll_forecast, col_titles );
+
+    const auto write_success{ CSV::SimpleCSV::write<double>(
+        doublescroll_forecast_path, doublescroll_forecast, col_titles ) };
+
+    if ( !write_success ) {
+        std::cerr << std::format( "Unable to write forecast data.\n" );
+    }
 #endif
 #ifdef HH_MODEL
     const auto base_path{ std::filesystem::absolute(
@@ -411,8 +427,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             results << test_labels, forecast;
 
-            CSV::SimpleCSV::write<double>( write_file, results, col_titles );
-            results_files.push_back( write_file.string() );
+            const auto write_success {
+                CSV::SimpleCSV::write<double>( write_file, results,
+                                               col_titles );
+                results_files.push_back( write_file.string() )
+            };
+
+            if ( !write_success ) {
+                std::cerr << std::format( "Unable to write forecast data.\n" );
+            }
 
             std::cout << "Done." << std::endl;
         }
