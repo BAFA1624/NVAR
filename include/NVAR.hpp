@@ -14,19 +14,19 @@ namespace NVAR
 {
 
 template <Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
-          bool target_difference = false>
+          bool           target_difference = false,
+          Constructor<T> C = MonomialConstructor<T>, Solver<T> S = L2Solver<T>>
 class NVAR
 {
     private:
     // Important NVAR state variables
-    Index  m_d;
-    Index  m_k;
-    Index  m_s;
-    Index  m_p;
-    bool   m_use_constant;
-    T      m_c;
-    T      m_ridge_param;
-    Mat<T> m_w_out;
+    nlohmann::json m_params;
+    Mat<T>         m_w_out;
+
+    // Nonlinearity constructor
+    C m_constructor;
+    // Weight solver
+    S m_solver;
 
     // Indices used to generate nonlinear features
     std::vector<std::vector<Index>> m_nonlinear_indices;
