@@ -26,7 +26,7 @@ add_subdirectory(src)
 
 # Forecast target for predicting the exact next difference
 # Main target stuff
-add_executable(main src/main.cpp src/NVAR_util.cpp)
+add_executable(main src/main.cpp)
 target_compile_definitions(main PUBLIC FORECAST)
 add_custom_command(
 	TARGET main POST_BUILD
@@ -47,7 +47,7 @@ add_custom_command(
 )
 
 # Forecast target for predicting the change for the next parameter
-add_executable(main_difference src/main.cpp src/NVAR_util.cpp)
+add_executable(main_difference src/main.cpp)
 target_compile_definitions(main_difference PUBLIC FORECAST TARGET_DIFFERENCE)
 add_custom_target(
 	forecast_difference
@@ -68,7 +68,7 @@ add_custom_command(
 )
 
 # Doublescroll target stuff
-add_executable(double_scroll src/main.cpp src/NVAR_util.cpp)
+add_executable(double_scroll src/main.cpp)
 target_compile_definitions(double_scroll PUBLIC DOUBLESCROLL)
 add_custom_target(
 	doublescroll
@@ -95,7 +95,7 @@ add_custom_command(
 )
 
 # HH model target
-add_executable(hhmodel src/main.cpp src/NVAR_util.cpp)
+add_executable(hhmodel src/main.cpp)
 target_compile_definitions(hhmodel PUBLIC HH_MODEL)
 add_custom_target(
 	hh_model
@@ -116,7 +116,7 @@ add_custom_command(
 )
 
 # Custom features target
-add_executable(customfeat src/main.cpp src/NVAR_util.cpp)
+add_executable(customfeat src/main.cpp)
 target_compile_definitions(customfeat PUBLIC CUSTOM_FEATURES)
 add_custom_target(
 	custom_feat
