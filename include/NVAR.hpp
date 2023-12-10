@@ -1,8 +1,5 @@
 #pragma once
 
-#include "NVAR_nonlinear_constructor.hpp"
-#include "NVAR_pipe.hpp"
-#include "NVAR_solvers.hpp"
 #include "NVAR_util.hpp"
 #include "simple_csv.hpp"
 
