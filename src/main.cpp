@@ -73,13 +73,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     // const auto train_details = NVAR::parse_filename( train_path.string() );
     // const auto test_details = NVAR::parse_filename( test_path.string() );
 
-    // const auto train_csv{ NVAR::SimpleCSV(
+    // const auto train_csv{ CSV::SimpleCSV(
     //     /*filename=*/train_path,
     //     /*col_titles=*/true,
     //     /*skip_header=*/1,
     //     /*delim*/ ",",
     //     /*max_line_size=*/256 ) };
-    // const auto test_csv{ NVAR::SimpleCSV(
+    // const auto test_csv{ CSV::SimpleCSV(
     //     /*filename=*/test_path,
     //     /*col_titles=*/true,
     //     /*skip_header=*/1,
@@ -92,7 +92,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
     };
-    const auto data_csv{ NVAR::SimpleCSV(
+    const auto data_csv{ CSV::SimpleCSV(
         /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
@@ -156,8 +156,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
-    NVAR::SimpleCSV::write<double>( forecast_path, forecast_data,
-                                    forecast_col_titles );
+    CSV::SimpleCSV::write<double>( forecast_path, forecast_data,
+                                   forecast_col_titles );
 #endif
 #ifdef CUSTOM_FEATURES
     const bool        use_const{ true };
@@ -210,8 +210,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
-    NVAR::SimpleCSV::write<double>( forecast_path, forecast_data,
-                                    forecast_col_titles );
+    CSV::SimpleCSV::write<double>( forecast_path, forecast_data,
+                                   forecast_col_titles );
 
 #endif
 #ifdef DOUBLESCROLL
@@ -225,13 +225,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/test_data/doublescroll.csv"
     };
     // clang-format off
-    const auto doublescroll_train_csv{ NVAR::SimpleCSV(
+    const auto doublescroll_train_csv{ CSV::SimpleCSV(
         /*filename=*/doublescroll_train_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
         /*delim*/ ",",
         /*max_line_size=*/256 ) };
-    const auto doublescroll_test_csv{ NVAR::SimpleCSV(
+    const auto doublescroll_test_csv{ CSV::SimpleCSV(
         /*filename=*/doublescroll_test_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
@@ -275,8 +275,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "doublescroll_predict.csv"
     };
     const std::vector<std::string> col_titles{ "v1", "v2", "I" };
-    NVAR::SimpleCSV::write<double>( doublescroll_forecast_path,
-                                    doublescroll_forecast, col_titles );
+    CSV::SimpleCSV::write<double>( doublescroll_forecast_path,
+                                   doublescroll_forecast, col_titles );
 #endif
 #ifdef HH_MODEL
     const auto base_path{ std::filesystem::absolute(
@@ -320,7 +320,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             // Load data
             std::cout << "Loading csv data." << std::endl;
             // clang-format off
-            const auto csv{ NVAR::SimpleCSV(
+            const auto csv{ CSV::SimpleCSV(
                 /*filename=*/write_path,
                 /*col_titles=*/true,
                 /*skip_header=*/0,
@@ -411,7 +411,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             results << test_labels, forecast;
 
-            NVAR::SimpleCSV::write<double>( write_file, results, col_titles );
+            CSV::SimpleCSV::write<double>( write_file, results, col_titles );
             results_files.push_back( write_file.string() );
 
             std::cout << "Done." << std::endl;

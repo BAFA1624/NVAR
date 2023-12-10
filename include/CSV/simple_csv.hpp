@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-namespace NVAR
+namespace CSV
 {
 
 template <typename T>
@@ -30,26 +30,26 @@ class SimpleCSV
     bool m_successful;
 
     // Data
-    std::map<std::string, Index>     m_title_map;
-    std::vector<std::vector<double>> m_data;
-    Index                            m_rows;
-    Index                            m_cols;
+    std::map<std::string, NVAR::Index> m_title_map;
+    std::vector<std::vector<double>>   m_data;
+    NVAR::Index                        m_rows;
+    NVAR::Index                        m_cols;
 
     // Parsing information
     std::filesystem::directory_entry m_file;
     bool                             m_col_titles;
-    Index                            m_skip_header;
+    NVAR::Index                      m_skip_header;
     std::string_view                 m_delim;
-    Index                            m_max_line_size;
+    NVAR::Index                      m_max_line_size;
 
     // Parsing
     void parse() noexcept;
 
     public:
     SimpleCSV( const std::filesystem::path filepath,
-               const bool col_titles = false, const Index skip_header = 0,
+               const bool col_titles = false, const NVAR::Index skip_header = 0,
                const std::string_view delim = ",",
-               const Index            max_line_size = 256 ) :
+               const NVAR::Index      max_line_size = 256 ) :
         m_successful( false ),
         m_file( filepath ),
         m_col_titles( col_titles ),
@@ -72,21 +72,23 @@ class SimpleCSV
     }
 
     template <typename T = double>
-    [[nodiscard]] constexpr std::vector<T> col( const Index i ) const noexcept;
+    [[nodiscard]] constexpr std::vector<T>
+    col( const NVAR::Index i ) const noexcept;
     template <typename T = double>
-    [[nodiscard]] constexpr Mat<T, -1, 1> colv( const Index i ) const noexcept;
-    template <typename T = double, Index R = -1, Index C = -1>
-    [[nodiscard]] constexpr Mat<T, R, C>
-    atv( const Index row_offset = 0,
-         const Index col_offset = 0 ) const noexcept;
+    [[nodiscard]] constexpr NVAR::Mat<T, -1, 1>
+    colv( const NVAR::Index i ) const noexcept;
+    template <typename T = double, NVAR::Index R = -1, NVAR::Index C = -1>
+    [[nodiscard]] constexpr NVAR::Mat<T, R, C>
+    atv( const NVAR::Index row_offset = 0,
+         const NVAR::Index col_offset = 0 ) const noexcept;
 
-    template <typename T = double, Index R = -1, Index C = -1>
+    template <typename T = double, NVAR::Index R = -1, NVAR::Index C = -1>
     static void write( const std::filesystem::path      file,
-                       const RefMat<T, R, C>            m,
+                       const NVAR::RefMat<T, R, C>      m,
                        const std::vector<std::string> & titles = {} ) noexcept;
     template <typename T>
     static void write( const std::filesystem::path      file,
-                       const RefMat<T, -1, -1>          m,
+                       const NVAR::RefMat<T, -1, -1>    m,
                        const std::vector<std::string> & titles = {} ) noexcept;
 
     [[nodiscard]] constexpr auto & rows() const noexcept { return m_rows; };
@@ -115,16 +117,16 @@ SimpleCSV::parse() noexcept {
     }
     else {
         // Get size of file
-        const Index full_file_sz{ file.tellg() };
+        const NVAR::Index full_file_sz{ file.tellg() };
         file.seekg( file.beg );
 
         // Skip header
-        for ( Index i{ 0 }; i < m_skip_header; ++i ) {
+        for ( NVAR::Index i{ 0 }; i < m_skip_header; ++i ) {
             file.ignore( m_max_line_size, '\n' );
         }
 
-        const Index start_pos{ file.tellg() };
-        const Index file_sz{ full_file_sz - start_pos };
+        const NVAR::Index start_pos{ file.tellg() };
+        const NVAR::Index file_sz{ full_file_sz - start_pos };
 
         // Read all text from file
         std::string file_str( static_cast<std::size_t>( file_sz ), '\0' );
@@ -168,18 +170,18 @@ SimpleCSV::parse() noexcept {
         }
 
         // Set size of m_data
-        m_cols = static_cast<Index>( m_title_map.size() );
+        m_cols = static_cast<NVAR::Index>( m_title_map.size() );
         m_data = std::vector<std::vector<double>>( m_title_map.size() );
 
         // Parse file line-by-line
-        Index row_count{ 0 };
+        NVAR::Index row_count{ 0 };
         while ( std::getline( ss, line, '\n' ) ) {
             auto split_row{ std::views::split( std::string_view( line ),
                                                m_delim )
                             | std::views::enumerate };
 
             // Read values in
-            Index count{ 0 }; // Count to ensure no. cols is consistent
+            NVAR::Index count{ 0 }; // Count to ensure no. cols is consistent
             for ( const auto & [i, value] : split_row ) {
                 m_data[i].push_back(
                     std::stod( std::string{ value.data(), value.size() } ) );
@@ -187,7 +189,7 @@ SimpleCSV::parse() noexcept {
             }
 
             // Check no. of vals on row matches expected no.
-            if ( count != static_cast<Index>( m_title_map.size() ) ) {
+            if ( count != static_cast<NVAR::Index>( m_title_map.size() ) ) {
                 m_data.clear();
                 m_title_map.clear();
                 std::cerr << "Inconsistent number of columns detected."
@@ -206,7 +208,7 @@ SimpleCSV::parse() noexcept {
 
 template <typename T>
 constexpr std::vector<T>
-SimpleCSV::col( const Index i ) const noexcept {
+SimpleCSV::col( const NVAR::Index i ) const noexcept {
     if ( m_successful ) {
         return m_data[static_cast<std::size_t>( i )];
     }
@@ -215,29 +217,30 @@ SimpleCSV::col( const Index i ) const noexcept {
     }
 }
 template <typename T>
-constexpr Mat<T, -1, 1>
-SimpleCSV::colv( const Index i ) const noexcept {
+constexpr NVAR::Mat<T, -1, 1>
+SimpleCSV::colv( const NVAR::Index i ) const noexcept {
     if ( m_successful ) {
-        Mat<T, -1, 1> result( m_data[static_cast<std::size_t>( i )].size() );
+        NVAR::Mat<T, -1, 1> result(
+            m_data[static_cast<std::size_t>( i )].size() );
         for ( const auto & [j, x] : m_data[i] | std::views::enumerate ) {
             result[j] = x;
         }
         return result;
     }
     else {
-        return Mat<T, -1, 1>{};
+        return NVAR::Mat<T, -1, 1>{};
     }
 }
 
-template <typename T, Index R, Index C>
-[[nodiscard]] constexpr Mat<T, R, C>
-SimpleCSV::atv( const Index row_offset,
-                const Index col_offset ) const noexcept {
+template <typename T, NVAR::Index R, NVAR::Index C>
+[[nodiscard]] constexpr NVAR::Mat<T, R, C>
+SimpleCSV::atv( const NVAR::Index row_offset,
+                const NVAR::Index col_offset ) const noexcept {
     if ( m_successful ) {
         if constexpr ( R > 0 && C > 0 ) {
-            Mat<T, R, C> result;
-            for ( Index col{ 0 }; col < C; ++col ) {
-                for ( Index row{ 0 }; row < R; ++row ) {
+            NVAR::Mat<T, R, C> result;
+            for ( NVAR::Index col{ 0 }; col < C; ++col ) {
+                for ( NVAR::Index row{ 0 }; row < R; ++row ) {
                     result( row, col ) =
                         m_data[static_cast<std::size_t>( col_offset + col )]
                               [static_cast<std::size_t>( row_offset + row )];
@@ -246,9 +249,9 @@ SimpleCSV::atv( const Index row_offset,
             return result;
         }
         else {
-            Mat<T, -1, -1> result( m_rows, m_cols );
-            for ( Index col{ 0 }; col < m_cols; ++col ) {
-                for ( Index row{ 0 }; row < m_rows; ++row ) {
+            NVAR::Mat<T, -1, -1> result( m_rows, m_cols );
+            for ( NVAR::Index col{ 0 }; col < m_cols; ++col ) {
+                for ( NVAR::Index row{ 0 }; row < m_rows; ++row ) {
                     result( row, col ) =
                         m_data[static_cast<std::size_t>( col_offset + col )]
                               [static_cast<std::size_t>( row_offset + row )];
@@ -258,17 +261,19 @@ SimpleCSV::atv( const Index row_offset,
         }
     }
     else {
-        return Mat<T, R, C>{};
+        return NVAR::Mat<T, R, C>{};
     }
 }
 
-template <typename T, Index R, Index C>
+template <typename T, NVAR::Index R, NVAR::Index C>
 void
-SimpleCSV::write( const std::filesystem::path file, const RefMat<T, R, C> m,
+SimpleCSV::write( const std::filesystem::path      file,
+                  const NVAR::RefMat<T, R, C>      m,
                   const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {
-        if ( !titles.empty() && static_cast<Index>( titles.size() ) == R ) {
+        if ( !titles.empty()
+             && static_cast<NVAR::Index>( titles.size() ) == R ) {
             // std::string line;
             for ( const auto c : titles | std::views::join_with( ',' ) ) {
                 fp << c;
@@ -278,9 +283,9 @@ SimpleCSV::write( const std::filesystem::path file, const RefMat<T, R, C> m,
             fp << std::endl;
         }
 
-        for ( Index row{ 0 }; row < R; ++row ) {
+        for ( NVAR::Index row{ 0 }; row < R; ++row ) {
             std::string line;
-            for ( Index col{ 0 }; col < C; ++col ) {
+            for ( NVAR::Index col{ 0 }; col < C; ++col ) {
                 line += std::to_string( m( row, col ) ) + ",";
             }
             line.pop_back();
@@ -292,7 +297,8 @@ SimpleCSV::write( const std::filesystem::path file, const RefMat<T, R, C> m,
 
 template <typename T>
 void
-SimpleCSV::write( const std::filesystem::path file, const RefMat<T, -1, -1> m,
+SimpleCSV::write( const std::filesystem::path      file,
+                  const NVAR::RefMat<T, -1, -1>    m,
                   const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {
@@ -303,9 +309,9 @@ SimpleCSV::write( const std::filesystem::path file, const RefMat<T, -1, -1> m,
             fp << std::endl;
         }
 
-        for ( Index row{ 0 }; row < m.rows(); ++row ) {
+        for ( NVAR::Index row{ 0 }; row < m.rows(); ++row ) {
             std::string line;
-            for ( Index col{ 0 }; col < m.cols(); ++col ) {
+            for ( NVAR::Index col{ 0 }; col < m.cols(); ++col ) {
                 line += std::to_string( m( row, col ) ) + ",";
             }
             line.pop_back();
@@ -315,4 +321,4 @@ SimpleCSV::write( const std::filesystem::path file, const RefMat<T, -1, -1> m,
     return;
 }
 
-}; // namespace NVAR
+}; // namespace CSV

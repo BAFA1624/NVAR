@@ -138,8 +138,8 @@ class NVAR
             // Write to file
             if ( std::filesystem::directory_entry( m_reconstruction_path )
                      .exists() ) {
-                SimpleCSV::write<T>( m_reconstruction_path, reconstruction,
-                                     m_col_titles );
+                CSV::SimpleCSV::write<T>( m_reconstruction_path, reconstruction,
+                                          m_col_titles );
             }
             else {
                 std::cerr << std::format(
