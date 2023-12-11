@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Eigen/Core"
+#include "Eigen/Sparse"
 
 #include <complex>
 #include <filesystem>
@@ -30,29 +31,46 @@ concept Weight = std::floating_point<T> || is_complex<T>::value;
 // Typedef for all integral types. Same as Eigen::Index.
 using Index = std::ptrdiff_t;
 
-// Eigen vector & matrix typedefs.
+// Eigen vector typedefs
 template <Weight T, Index N = Eigen::Dynamic>
 using Vec = Eigen::Vector<T, N>;
+template <Weight T>
+using SVec = Eigen::SparseVector<T, Eigen::ColMajor, Index>;
 template <Weight T, Index N = Eigen::Dynamic>
 using RowVec = Eigen::RowVector<T, N>;
+template <Weight T>
+using RowSVec = Eigen::SparseVector<T, Eigen::RowMajor, Index>;
 template <Weight T, Index N = Eigen::Dynamic>
 using RefVec = Eigen::Ref<Vec<T, N>>;
+template <Weight T>
+using RefSVec = Eigen::Ref<SVec<T>>;
 template <Weight T, Index N = Eigen::Dynamic>
 using RefRowVec = Eigen::Ref<RowVec<T, N>>;
+template <Weight T>
+using RefRowSVec = Eigen::Ref<RowSVec<T>>;
 template <Weight T, Index N = Eigen::Dynamic>
 using ConstRefVec = Eigen::Ref<const Vec<T, N>>;
+template <Weight T>
+using CosntRefSVec = Eigen::Ref<const SVec<T>>;
 template <Weight T, Index N = Eigen::Dynamic>
 using ConstRefRowVec = Eigen::Ref<const RowVec<T, N>>;
+template <Weight T>
+using ConstRefRowSVec = Eigen::Ref<const RowSVec<T>>;
+
+// Eigen matrix typedefs
 template <Index N = Eigen::Dynamic>
 using Indices = Eigen::Vector<Index, N>;
 template <Index N = Eigen::Dynamic>
 using RefIndices = Eigen::Ref<Indices<N>>;
+
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using Mat = Eigen::Matrix<T, R, C>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using RefMat = Eigen::Ref<Mat<T, R, C>>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using ConstRefMat = Eigen::Ref<const Mat<T, R, C>>;
+template <Weight T>
+using SparseMat = Eigen::SparseMatrix<T, Eigen::ColMajor, Index>;
 
 // Return type for train/test split functions
 template <Weight T, Index R = -1, Index C = -1>
