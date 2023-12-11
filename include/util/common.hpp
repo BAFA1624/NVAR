@@ -70,7 +70,11 @@ using RefMat = Eigen::Ref<Mat<T, R, C>>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using ConstRefMat = Eigen::Ref<const Mat<T, R, C>>;
 template <Weight T>
-using SparseMat = Eigen::SparseMatrix<T, Eigen::ColMajor, Index>;
+using SMat = Eigen::SparseMatrix<T, Eigen::ColMajor, Index>;
+template <Weight T>
+using RefSMat = Eigen::Ref<SMat<T>>;
+template <Weight T>
+using ConstRefSMat = Eigen::Ref<const SMat<T>>;
 
 // Return type for train/test split functions
 template <Weight T, Index R = -1, Index C = -1>
