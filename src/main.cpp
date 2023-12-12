@@ -2,7 +2,7 @@
 #include "ESN/ESN_util.hpp"
 #include "Eigen/Dense"
 #include "NVAR/NVAR.hpp"
-// #include "nlohmann/json.hpp"
+#include "nlohmann/json.hpp"
 
 #include <array>  //exec
 #include <cstdio> // exec
@@ -70,33 +70,6 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         []( [[maybe_unused]] const auto x ) { return 1.0; },
         std::normal_distribution<double>( 0.0, 2.0 ) ) };
     std::cout << smat << std::endl;
-
-    // const std::filesystem::path train_path{
-    //     //"../data/train_data/17_0_-1_10000_0_1_1.csv"
-    //     "../data/train_data/21_0_-1_21000_0_1_1.csv"
-    // };
-    // const std::filesystem::path test_path{
-    //     "../data/test_data/21_1_-1_189000_0_1_1.csv"
-    // };
-
-    // const auto train_details = parse_filename( train_path.string() );
-    // const auto test_details = parse_filename( test_path.string() );
-
-    // const auto train_csv{ CSV::SimpleCSV(
-    //     /*filename=*/train_path,
-    //     /*col_titles=*/true,
-    //     /*skip_header=*/1,
-    //     /*delim*/ ",",
-    //     /*max_line_size=*/256 ) };
-    // const auto test_csv{ CSV::SimpleCSV(
-    //     /*filename=*/test_path,
-    //     /*col_titles=*/true,
-    //     /*skip_header=*/1,
-    //     /*delim=*/",",
-    //     /*max_line_size=*/256 ) };
-
-    // const Mat<double> train_data_pool{ train_csv.atv<double>( 0, 0 ) };
-    // const Mat<double> test_data_pool{ test_csv.atv<double>( 0, 0 ) };
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
@@ -432,14 +405,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             results << test_labels, forecast;
 
-            const auto write_success {
-                CSV::SimpleCSV::write<double>( write_file, results,
-                                               col_titles );
-                results_files.push_back( write_file.string() )
-            };
+            const auto write_success{ CSV::SimpleCSV::write<double>(
+                write_file, results, col_titles ) };
 
             if ( !write_success ) {
                 std::cerr << std::format( "Unable to write forecast data.\n" );
+            }
+            else {
+                results_files.push_back( write_file.string() );
             }
 
             std::cout << "Done." << std::endl;
@@ -466,14 +439,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         }
     }
 
-    nlohmann::json file_json;
+    /*nlohmann::json file_json;
     file_json["results_files"] = results_files;
 
     const std::filesystem::path results_file_path{
         "../metadata/results_files.json"
     };
     std::ofstream output( results_file_path );
-    output << std::setw( 4 ) << file_json << std::endl;
+    output << std::setw( 4 ) << file_json << std::endl;*/
 
 #endif
     return 0;
