@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <format>
 #include <map>
+#include <random>
 #include <ranges>
 #include <regex>
 #include <string>
@@ -24,9 +25,78 @@ template <std::floating_point T>
 struct is_complex<std::complex<T>> : std::true_type
 {};
 
+// Concept for arithmetic types
+template <typename T>
+concept ArithmeticType = std::is_arithmetic<T>::value;
+
+template <typename T>
+concept DefaultConstructible = requires {
+    { T() } -> std::same_as<T>;
+};
+
+// RandomNumberDistribution concept
+template <typename Dist>
+concept RandomNumberDistribution =
+    DefaultConstructible<Dist> && std::copyable<Dist>
+    && ArithmeticType<typename Dist::result_type>
+    && std::copyable<typename Dist::param_type>
+    && std::equality_comparable<typename Dist::param_type>
+    && requires( Dist x, const Dist y, std::ostream & os, std::istream & is ) {
+           // Member types:
+           typename Dist::result_type;
+           typename Dist::param_type;
+
+           // Dist behaviour:
+           { x.reset() } -> std::same_as<void>;
+           { y.param() } -> std::convertible_to<typename Dist::param_type>;
+           { x.min() } -> std::convertible_to<typename Dist::result_type>;
+           { x.max() } -> std::convertible_to<typename Dist::result_type>;
+           { x == y } -> std::same_as<bool>;
+           { x != y } -> std::same_as<bool>;
+           { os << x } -> std::same_as<decltype( os ) &>;
+           { is >> x } -> std::same_as<decltype( is ) &>;
+
+           // Requirements I haven't worked out yet
+           // { x.param( p ) } -> std::same_as<void>;
+           // { Dist( p ).param() == p };
+           // d(g) -> std::same_as<typename Dist::result_type>;
+           // d(g, p) -> std::same_as<typename Dist::result_type>;
+       };
+
+template <RandomNumberDistribution          Distribution,
+          std::uniform_random_bit_generator Generator,
+          std::unsigned_integral            Seed_t, typename... Args>
+struct DistributionGenerator
+{
+    using T = typename Distribution::result_type;
+
+    T            m_threshold;
+    Generator    m_gen;
+    Distribution m_dist;
+
+    DistributionGenerator( Seed_t                              seed,
+                           const std::function<T( Args... )> & threshold_func,
+                           Args... args ) :
+        m_threshold( std::apply( threshold_func, std::make_tuple( args... ) ) ),
+        m_gen( gen( seed ) ),
+        m_dist(
+            std::make_from_tuple<Distribution>( std::make_tuple( args... ) ) ) {
+    }
+
+    [[nodiscard]] constexpr inline auto threshold() const noexcept {
+        return m_threshold;
+    }
+    [[nodiscard]] constexpr inline auto & generator() const noexcept {
+        return m_gen;
+    }
+    [[nodiscard]] inline auto & dist() noexcept { return m_dist; }
+    constexpr inline void       reset() noexcept { m_dist.reset(); }
+};
+
+
 // Concept for weight types
 template <typename T>
-concept Weight = std::floating_point<T> || is_complex<T>::value;
+concept Weight = std::floating_point<T>; //|| is_complex<T>::value;
 
 // Typedef for all integral types. Same as Eigen::Index.
 using Index = std::ptrdiff_t;
