@@ -65,7 +65,7 @@ concept RandomNumberDistribution =
 
 template <RandomNumberDistribution          Distribution,
           std::uniform_random_bit_generator Generator,
-          std::unsigned_integral            Seed_t, typename... Args>
+          std::unsigned_integral            Seed_t>
 struct DistributionGenerator
 {
     using T = typename Distribution::result_type;
@@ -74,9 +74,11 @@ struct DistributionGenerator
     Generator    m_gen;
     Distribution m_dist;
 
-    DistributionGenerator( Seed_t                              seed,
-                           const std::function<T( Args... )> & threshold_func,
-                           Args... args ) :
+    DistributionGenerator(
+        Seed_t                                       seed,
+        const std::function<std::pair<T, T>(
+            const std::initializer_list<T> & ls )> & threshold_func,
+        const std::initializer_list<T> &             ls ) :
         m_threshold( std::apply( threshold_func, std::make_tuple( args... ) ) ),
         m_gen( gen( seed ) ),
         m_dist(
@@ -90,6 +92,7 @@ struct DistributionGenerator
         return m_gen;
     }
     [[nodiscard]] inline auto & dist() noexcept { return m_dist; }
+    constexpr inline T          next() noexcept { return m_dist( m_gen ); }
     constexpr inline void       reset() noexcept { m_dist.reset(); }
 };
 

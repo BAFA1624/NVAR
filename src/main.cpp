@@ -66,9 +66,14 @@ shape_str( const ConstRefMat<T, R, C> m ) {
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto smat{ ESN::generate_sparse<double, unsigned>(
-        Index{ 10 }, Index{ 10 }, 0.5, 0,
-        []( [[maybe_unused]] const auto x ) { return 1.0; },
-        std::normal_distribution<double>( 0.0, 2.0 ) ) };
+        /*rows=*/Index{ 10 }, /*cols=*/Index{ 10 }, /*sparsity=*/0.5,
+        /*seed=*/0,
+        /*gen_value=*/[]( [[maybe_unused]] const auto x ) { return 1.0; },
+        /* threshold_func=*/
+        []( const double min, const double max ) {
+            return std::tuple{ min, max - min };
+        },
+        /* args=*/0.0, 1.0 ) };
     std::cout << smat << std::endl;
 
     const std::filesystem::path data_path{

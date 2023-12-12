@@ -17,12 +17,10 @@ template <Weight T, std::unsigned_integral Seed_t = std::uint_fast32_t,
                                            0xefc60000, 18, 1812433253>>
 constexpr inline SMat<T>
 generate_sparse(
-    const Index rows, const Index cols, const T sparsity,
-    const Seed_t                        seed = Seed_t{ 0 },
-    const std::function<T( const T )> & gen_value =
-        []( [[maybe_unused]] const T x ) { return T{ 1. }; },
-    Dist distribution = std::uniform_real_distribution<T>( T{ 0.0 },
-                                                           T{ 1.0 } ) ) {
+    const Index rows, const Index cols, const T sparsity, const Seed_t seed,
+    const std::function<T( const T )> &                   gen_value,
+    const std::function<std::tuple<T, T>( const T... )> & threshold_func,
+    const T... args ) {
     if ( T{ 0. } > sparsity || T{ 1. } < sparsity ) {
         std::cerr << std::format(
             "Matrix sparsity must satisfy: 0 <= sparsity <= 1 (sparsity = "
@@ -31,22 +29,25 @@ generate_sparse(
         exit( EXIT_FAILURE );
     }
 
-    // Get random value generator & distribution generator
-    auto gen{ Generator( seed ) };
+    DistributionGenerator<Dist, Generator, Seed_t, T...> dist_gen(
+        seed, threshold_func, args... );
+
     // Get threshold value based on threshold, & the min, & max of the given
     // distribution
-    const auto threshold =
-        ( distribution.max() - distribution.min() ) * sparsity;
+    const auto [min, range] = dist_gen.threshold();
+    const T threshold{ min + sparsity * range };
+
     std::cout << std::format(
-        "distribution.min() = {}, distribution.max() = {}n\nthreshold = {}\n",
-        distribution.min(), distribution.max(), threshold );
+        "distribution.min() = {}, distribution.max() = {}n\nthreshold = "
+        "{}\n",
+        threshold );
 
     // Storage for triplets reserved based on estimated no. of elements
     std::vector<Eigen::Triplet<T, Index>> triplets(
         static_cast<std::size_t>( static_cast<T>( rows * cols ) * sparsity ) );
     for ( Index i{ 0 }; i < rows; ++i ) {
         for ( Index j{ 0 }; j < cols; ++j ) {
-            if ( const auto x{ distribution( gen ) }; x < sparsity ) {
+            if ( const auto x{ dist_gen.next() }; x < sparsity ) {
                 triplets.push_back( Eigen::Triplet{ i, j, gen_value( x ) } );
             }
         }
