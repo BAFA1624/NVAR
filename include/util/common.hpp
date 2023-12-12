@@ -84,10 +84,17 @@ using DataPair = std::tuple<Mat<T, R, C>, Mat<T, R, C>>;
 using FeatureVecShape = std::vector<std::tuple<Index, Index>>;
 
 // String version of Eigen::Matrix shape
-template <typename T, Index R = -1, Index C = -1>
+template <Weight T, Index R = -1, Index C = -1>
 std::string
 mat_shape_str( const ConstRefMat<T, R, C> m ) {
     return std::format( "({}, {})", m.rows(), m.cols() );
+}
+
+template <Weight T>
+constexpr inline T
+inversion_condition( const ConstRefMat<T> m ) {
+    const auto sing_values = m.jacobiSvd().singularValues();
+    return sing_values( Eigen::placeholders::last ) / sing_values( 0 );
 }
 
 // Implementation from: https://github.com/pconstr/eigen-ridge.git
