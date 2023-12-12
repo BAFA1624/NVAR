@@ -1,4 +1,5 @@
 #include "CSV/simple_csv.hpp"
+#include "ESN/ESN_util.hpp"
 #include "Eigen/Dense"
 #include "NVAR/NVAR.hpp"
 // #include "nlohmann/json.hpp"
@@ -64,6 +65,12 @@ shape_str( const ConstRefMat<T, R, C> m ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
+    const auto smat{ ESN::generate_sparse<double, unsigned>(
+        Index{ 10 }, Index{ 10 }, 0.5, 0,
+        []( [[maybe_unused]] const auto x ) { return 1.0; },
+        std::normal_distribution<double>( 0.0, 2.0 ) ) };
+    std::cout << smat << std::endl;
+
     // const std::filesystem::path train_path{
     //     //"../data/train_data/17_0_-1_10000_0_1_1.csv"
     //     "../data/train_data/21_0_-1_21000_0_1_1.csv"
