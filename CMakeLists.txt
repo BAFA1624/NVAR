@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
+set(CMAKE_CXX_FLAGS_DEBUG "-fconcepts-diagnostics-depth=3 -Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Wno-error=deprecated-enum-enum-conversion -Wno-error=class-memaccess -Werror -DNDEBUG -march=native -Wall -Wextra -pedantic -O3")
 
 option(JSON_ImplicitConversions OFF)
