@@ -10,19 +10,7 @@ else()
 endif()
 
 # Find Boost
-#set(Boost_USE_STATIC_LIBS OFF)
-#set(Boost_USE_MULTITHREADED ON)
-#set(Boost_USE_STATIC_RUNTIME OFF)
-#find_package(Boost 1.80 REQUIRED COMPONENTS math)
-#message(STATUS "Boost version: ${Boost_VERSION}")
-#
-#if (NOT TARGET Boost::math)
-#	add_library(Boost::math IMPORTED INTERFACE)
-#	set_property(TARGET Boost::math PROPERTY
-#		INTERFACE_INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIR})
-#	set_property(TARGET Boost::filesystem PROPERTY
-#		INTERFACE_LINK_LIBRARIES ${Boost_LIBRARIES})
-#endif()
+find_package(Boost 1.83 COMPONENTS random REQUIRED)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -37,10 +25,11 @@ option(JSON_ImplicitConversions OFF)
 include_directories(./include)
 include_directories(~/include)
 include_directories(nlohmann_json/include)
+include_directories(${Boost_INCLUDE_DIR})
 add_subdirectory(src)
 
 # Libraries to link
-set(LINK_LIBS) #Boost::math
+set(LINK_LIBS ${Boost_LIBRARIES}) #Boost::math
 
 # Forecast target for predicting the exact next difference
 # Main target stuff

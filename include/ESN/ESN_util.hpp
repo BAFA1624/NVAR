@@ -12,17 +12,13 @@ namespace ESN
 using namespace UTIL;
 
 // Generates sparse matrix
-template <
-    Weight T, std::integral Seed_t = std::uint32_t,
-    PseudoRandomNumberGenerator<Seed_t> Generator = default_generator<Seed_t>,
-    RandomDistribution<Generator> Distribution = boost::random::uniform_01<T>>
+template <Weight T, typename distribution>
 constexpr inline SMat<T>
 generate_sparse(
-    const Index rows, const Index cols, const T sparsity,
-    const Seed_t                        seed = Seed_t{ 0 },
+    const Index rows, const Index cols, const T sparsity, const auto seed,
+    const auto distribution, const auto generator,
     const std::function<T( const T )> & gen_value =
-        []( [[maybe_unused]] const T x ) { return T{ 1. }; },
-    Distribution distribution = boost::random::uniform_01<T>{} ) {
+        []( [[maybe_unused]] const T x ) { return T{ 1. }; } ) {
     // Check valid threshold
     if ( !( 0 <= sparsity && 1 >= sparsity ) ) {
         std::cerr << std::format(
@@ -34,7 +30,7 @@ generate_sparse(
     }
 
     // Get random value generator & distribution generator
-    auto generator{ Generator( seed ) };
+    generator.reset( seed );
 
     // Get threshold value based on threshold, & the min, & max of the given
     // distribution

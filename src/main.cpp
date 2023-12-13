@@ -5,7 +5,7 @@
 #include "nlohmann/json.hpp"
 
 #include <array> //exec
-#include <boost/random.hpp>
+#include <boost/math/distributions.hpp>
 #include <cstdio> // exec
 #include <format>
 #include <iostream>
@@ -66,8 +66,9 @@ shape_str( const ConstRefMat<T, R, C> m ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-    const auto smat{ ESN::generate_sparse<double, std::int32_t, boost::mt19937>(
-        Index{ 10 }, Index{ 10 }, 0.1, 0 ) };
+    const auto smat{ ESN::generate_sparse<double>(
+        Index{ 10 }, Index{ 10 }, 0.1, 0,
+        boost::uniform_real<double>( 0.0, 1.0 ), boost::mt19937{} ) };
     std::cout << smat << std::endl;
 
     const std::filesystem::path data_path{
