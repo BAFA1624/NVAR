@@ -2,6 +2,8 @@
 
 #include "util/common.hpp"
 
+#include <numeric>
+
 namespace ESN
 {
 
@@ -21,11 +23,15 @@ generate_sparse(
     const Seed_t                        seed = Seed_t{ 0 },
     const std::function<T( const T )> & gen_value =
         []( [[maybe_unused]] const T x ) { return T{ 1. }; },
-    Dist distribution = std::uniform_real_distribution<T>( T{ 0.0 },
-                                                           T{ 1.0 } ) ) {
-    if ( T{ 0. } > sparsity || T{ 1. } < sparsity ) {
+    const std::function<T( const T, const T, const T )> & threshold_func =
+        []( const T min, const T max, const T sparsity ) {
+            return min + sparsity * ( max - min );
+        },
+    const T param_a = T{ 0. }, const T param_b = T{ 1. } ) {
+    // Check valid threshold
+    if ( !( 0 <= sparsity && 1 >= sparsity ) ) {
         std::cerr << std::format(
-            "Matrix sparsity must satisfy: 0 <= sparsity <= 1 (sparsity = "
+            "Matrix sparsity must be bound by: 0 <= sparsity <= 1 (sparsity = "
             "{})\n",
             sparsity );
         exit( EXIT_FAILURE );
@@ -33,10 +39,11 @@ generate_sparse(
 
     // Get random value generator & distribution generator
     auto gen{ Generator( seed ) };
+    auto distribution = Dist( param_a, param_b );
+
     // Get threshold value based on threshold, & the min, & max of the given
     // distribution
-    const auto threshold =
-        ( distribution.max() - distribution.min() ) * sparsity;
+    const T threshold{ threshold_func( param_a, param_b, sparsity ) };
     std::cout << std::format(
         "distribution.min() = {}, distribution.max() = {}n\nthreshold = {}\n",
         distribution.min(), distribution.max(), threshold );
@@ -46,7 +53,7 @@ generate_sparse(
         static_cast<std::size_t>( static_cast<T>( rows * cols ) * sparsity ) );
     for ( Index i{ 0 }; i < rows; ++i ) {
         for ( Index j{ 0 }; j < cols; ++j ) {
-            if ( const auto x{ distribution( gen ) }; x < sparsity ) {
+            if ( const auto x{ distribution( gen ) }; x < threshold ) {
                 triplets.push_back( Eigen::Triplet{ i, j, gen_value( x ) } );
             }
         }

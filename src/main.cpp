@@ -66,9 +66,12 @@ shape_str( const ConstRefMat<T, R, C> m ) {
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto smat{ ESN::generate_sparse<double, unsigned>(
-        Index{ 10 }, Index{ 10 }, 0.5, 0,
+        Index{ 10 }, Index{ 10 }, 0.1, 0,
         []( [[maybe_unused]] const auto x ) { return 1.0; },
-        std::normal_distribution<double>( 0.0, 2.0 ) ) };
+        []( const auto mean, const auto stdev, const auto sparsity ) {
+            return ( mean - 6 * stdev ) + sparsity * ( 12 * stdev );
+        },
+        1., 1. ) };
     std::cout << smat << std::endl;
 
     const std::filesystem::path data_path{
