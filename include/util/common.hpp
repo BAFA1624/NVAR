@@ -3,14 +3,17 @@
 #include "Eigen/Core"
 #include "Eigen/Sparse"
 
+#include <boost/random.hpp>
 #include <complex>
 #include <filesystem>
 #include <format>
+#include <iterator>
 #include <map>
 #include <random>
 #include <ranges>
 #include <regex>
 #include <string>
+#include <type_traits>
 
 namespace UTIL
 {
@@ -31,67 +34,89 @@ concept ArithmeticType = std::is_arithmetic<T>::value;
 
 template <typename T>
 concept DefaultConstructible = requires {
-    { T() } -> std::same_as<T>;
+    { T::T() } -> std::same_as<T>;
 };
 
-// RandomNumberDistribution concept
-template <typename Dist>
-concept RandomNumberDistribution =
-    DefaultConstructible<Dist> && std::copyable<Dist>
-    && ArithmeticType<typename Dist::result_type>
-    && std::copyable<typename Dist::param_type>
-    && std::equality_comparable<typename Dist::param_type>
-    && requires( Dist x, const Dist y, std::ostream & os, std::istream & is ) {
-           // Member types:
-           typename Dist::result_type;
-           typename Dist::param_type;
+// INCOMPLETE, need to be able to check constructor is explicit
+template <typename T, typename... Args>
+concept ExplicitlyConstructible =
+    requires { std::is_constructible<T, Args...>::value; };
 
-           // Dist behaviour:
-           { x.reset() } -> std::same_as<void>;
-           { y.param() } -> std::convertible_to<typename Dist::param_type>;
-           { x.min() } -> std::convertible_to<typename Dist::result_type>;
-           { x.max() } -> std::convertible_to<typename Dist::result_type>;
-           { x == y } -> std::same_as<bool>;
-           { x != y } -> std::same_as<bool>;
-           { os << x } -> std::same_as<decltype( os ) &>;
-           { is >> x } -> std::same_as<decltype( is ) &>;
+template <typename T>
+concept LessThanComparable =
+    std::equality_comparable<T> && requires( const T lhs, const T rhs ) {
+        { lhs < rhs } -> std::convertible_to<bool>;
+        { lhs > rhs } -> std::convertible_to<bool>;
+    };
 
-           // Requirements I haven't worked out yet
-           // { x.param( p ) } -> std::same_as<void>;
-           // { Dist( p ).param() == p };
-           // d(g) -> std::same_as<typename Dist::result_type>;
-           // d(g, p) -> std::same_as<typename Dist::result_type>;
+template <typename T>
+concept OutStream = std::is_convertible_v<T, std::ostream &>;
+template <typename T>
+concept InStream = std::is_convertible_v<T, std::istream &>;
+
+template <typename T>
+concept Streamable =
+    requires( T x, const T y, std::ostream & os, std::istream & is ) {
+        { os << y } -> OutStream;
+        { is >> x } -> InStream;
+    };
+
+// Concepts for boost random distributions etc.
+template <typename Seq, typename Iter>
+concept SeedSeq = requires( Seq s, Iter begin, Iter end ) {
+    typename Iter::value_type;
+    requires sizeof( Iter::value_type ) >= 4;
+    { s.generate( begin, end ) } -> std::same_as<void>;
+};
+
+template <typename Generator>
+concept NumberGenerator = requires( Generator u ) {
+    typename Generator::result_type;
+    std::numeric_limits<typename Generator::result_type>::is_specialized;
+    requires LessThanComparable<typename Generator::result_type>;
+    { u.operator()() } -> std::convertible_to<typename Generator::result_type>;
+};
+
+template <typename Generator, typename ResultType>
+concept UniformRandomNumberGenerator =
+    NumberGenerator<Generator> && requires( const Generator v ) {
+        // requires std::same_as<typename Generator::has_fixed_range, bool>;
+        // requires std::same_as<typename Generator::min_value,
+        //                       typename Generator::max_value>;
+        //{ v.min() } -> std::same_as<typename Generator::min_value>;
+        //{ v.max() } -> std::same_as<typename Generator::max_value>;
+        { v.min() } -> std::convertible_to<ResultType>;
+        { v.max() } -> std::convertible_to<ResultType>;
+    };
+
+template <typename Generator, typename ResultType, typename Integral>
+concept PseudoRandomNumberGenerator =
+    UniformRandomNumberGenerator<Generator, ResultType>
+    && DefaultConstructible<Generator>
+    && std::constructible_from<Generator, Integral> && std::copyable<Generator>
+    && std::equality_comparable<Generator> && Streamable<Generator>
+    && std::integral<Integral>
+    && requires( Generator u, Integral i, unsigned long long j ) {
+           { u.seed( i ) } -> std::same_as<void>;
+           { u.discard( j ) } -> std::same_as<void>;
        };
 
-template <RandomNumberDistribution          Distribution,
-          std::uniform_random_bit_generator Generator,
-          std::unsigned_integral            Seed_t, typename... Args>
-struct DistributionGenerator
-{
-    using T = typename Distribution::result_type;
+template <std::integral Seed_t>
+using default_generator =
+    boost::random::mersenne_twister<Seed_t, 624, 397, 31, Seed_t{ 0x9908b0df },
+                                    11, 7, 0x9d2c5680, 15, Seed_t{ 0xefc60000 },
+                                    18, 334, 6425566U>;
 
-    T            m_threshold;
-    Generator    m_gen;
-    Distribution m_dist;
-
-    DistributionGenerator( Seed_t                              seed,
-                           const std::function<T( Args... )> & threshold_func,
-                           Args... args ) :
-        m_threshold( std::apply( threshold_func, std::make_tuple( args... ) ) ),
-        m_gen( gen( seed ) ),
-        m_dist(
-            std::make_from_tuple<Distribution>( std::make_tuple( args... ) ) ) {
-    }
-
-    [[nodiscard]] constexpr inline auto threshold() const noexcept {
-        return m_threshold;
-    }
-    [[nodiscard]] constexpr inline auto & generator() const noexcept {
-        return m_gen;
-    }
-    [[nodiscard]] inline auto & dist() noexcept { return m_dist; }
-    constexpr inline void       reset() noexcept { m_dist.reset(); }
-};
+template <typename Distribution, typename Generator>
+concept RandomDistribution =
+    NumberGenerator<Distribution> && std::copyable<Distribution>
+    && Streamable<Distribution> && UniformRandomNumberGenerator<Generator>
+    && requires( Distribution u, const Distribution v, Generator e,
+                 std::ostream & os, std::istream & is ) {
+           typename Distribution::input_type;
+           { u.reset() } -> std::same_as<void>;
+           { u( e ) } -> std::same_as<typename Generator::result_type>;
+       };
 
 
 // Concept for weight types

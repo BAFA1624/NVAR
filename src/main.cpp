@@ -4,7 +4,8 @@
 #include "NVAR/NVAR.hpp"
 #include "nlohmann/json.hpp"
 
-#include <array>  //exec
+#include <array> //exec
+#include <boost/random.hpp>
 #include <cstdio> // exec
 #include <format>
 #include <iostream>
@@ -65,13 +66,8 @@ shape_str( const ConstRefMat<T, R, C> m ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-    const auto smat{ ESN::generate_sparse<double, unsigned>(
-        Index{ 10 }, Index{ 10 }, 0.1, 0,
-        []( [[maybe_unused]] const auto x ) { return 1.0; },
-        []( const auto mean, const auto stdev, const auto sparsity ) {
-            return ( mean - 6 * stdev ) + sparsity * ( 12 * stdev );
-        },
-        1., 1. ) };
+    const auto smat{ ESN::generate_sparse<double, std::int32_t, boost::mt19937>(
+        Index{ 10 }, Index{ 10 }, 0.1, 0 ) };
     std::cout << smat << std::endl;
 
     const std::filesystem::path data_path{

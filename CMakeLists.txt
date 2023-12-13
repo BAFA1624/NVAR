@@ -9,6 +9,21 @@ else()
 	set(CMAKE_CXX_COMPILER g++)
 endif()
 
+# Find Boost
+#set(Boost_USE_STATIC_LIBS OFF)
+#set(Boost_USE_MULTITHREADED ON)
+#set(Boost_USE_STATIC_RUNTIME OFF)
+#find_package(Boost 1.80 REQUIRED COMPONENTS math)
+#message(STATUS "Boost version: ${Boost_VERSION}")
+#
+#if (NOT TARGET Boost::math)
+#	add_library(Boost::math IMPORTED INTERFACE)
+#	set_property(TARGET Boost::math PROPERTY
+#		INTERFACE_INCLUDE_DIRECTORIES ${Boost_INCLUDE_DIR})
+#	set_property(TARGET Boost::filesystem PROPERTY
+#		INTERFACE_LINK_LIBRARIES ${Boost_LIBRARIES})
+#endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -23,6 +38,9 @@ include_directories(./include)
 include_directories(~/include)
 include_directories(nlohmann_json/include)
 add_subdirectory(src)
+
+# Libraries to link
+set(LINK_LIBS) #Boost::math
 
 # Forecast target for predicting the exact next difference
 # Main target stuff
@@ -148,10 +166,12 @@ add_test(test unit_test)
 set_tests_properties(test PROPERTIES FIXTURES_REQUIRED test_fixture)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-	target_link_libraries(main d_classic)
-	target_link_libraries(main_difference d_classic)
-	target_link_libraries(double_scroll d_classic)
-	target_link_libraries(hhmodel d_classic)
-	target_link_libraries(customfeat d_classic)
-	target_link_libraries(unit_test d_classic)
+	list(APPEND LINK_LIBS d_classic)
 endif()
+
+target_link_libraries(main PRIVATE ${LINK_LIBS})
+target_link_libraries(main_difference PRIVATE ${LINK_LIBS})
+target_link_libraries(double_scroll PRIVATE ${LINK_LIBS})
+target_link_libraries(hhmodel PRIVATE ${LINK_LIBS})
+target_link_libraries(customfeat PRIVATE ${LINK_LIBS})
+target_link_libraries(unit_test PRIVATE ${LINK_LIBS})
