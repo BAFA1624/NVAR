@@ -6,6 +6,7 @@
 #include <complex>
 #include <filesystem>
 #include <format>
+#include <iterator>
 #include <map>
 #include <random>
 #include <ranges>
@@ -30,14 +31,38 @@ template <typename T>
 concept ArithmeticType = std::is_arithmetic<T>::value;
 
 template <typename T>
-concept DefaultConstructible = requires {
-    { T() } -> std::same_as<T>;
-};
+concept InStream = std::convertible_to<T, std::istream &>;
+template <typename T>
+concept OutStream = std::convertible_to<T, std::ostream &>;
+
+template <typename T>
+concept Streamable =
+    requires( T x, const T y, std::ostream & os, std::istream & is ) {
+        { os << y } -> OutStream;
+        { is >> x } -> InStream;
+    };
+
+// RandomNumberEngine concept
+template <typename Engine>
+concept RandomNumberEngine =
+    requires( Engine e, const typename Engine::result_type seed,
+              const unsigned long long n ) {
+        requires std::unsigned_integral<typename Engine::result_type>;
+        { e.seed( seed ) } -> std::same_as<void>;
+        { e.operator()() } -> std::same_as<typename Engine::result_type>;
+        { e.discard( n ) } -> std::same_as<void>;
+        { e.min() } -> std::same_as<typename Engine::result_type>;
+        { e.max() } -> std::same_as<typename Engine::result_type>;
+    }
+    && std::default_initializable<Engine>
+    && std::constructible_from<Engine, const Engine &>
+    && std::constructible_from<Engine, typename Engine::result_type>
+    && std::equality_comparable<Engine> && Streamable<Engine>;
 
 // RandomNumberDistribution concept
 template <typename Dist>
 concept RandomNumberDistribution =
-    DefaultConstructible<Dist> && std::copyable<Dist>
+    std::constructible_from<Dist> && std::copyable<Dist>
     && ArithmeticType<typename Dist::result_type>
     && std::copyable<typename Dist::param_type>
     && std::equality_comparable<typename Dist::param_type>
