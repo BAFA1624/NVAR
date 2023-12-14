@@ -33,10 +33,16 @@ template <typename T>
 concept ArithmeticType = std::is_arithmetic<T>::value;
 
 template <typename T>
+concept LessThanComparable =
+    std::equality_comparable<T> && requires( const T lhs, const T rhs ) {
+        { lhs < rhs } -> std::convertible_to<bool>;
+        { lhs > rhs } -> std::convertible_to<bool>;
+    };
+
+template <typename T>
 concept InStream = std::convertible_to<T, std::istream &>;
 template <typename T>
 concept OutStream = std::convertible_to<T, std::ostream &>;
-
 template <typename T>
 concept Streamable =
     requires( T x, const T y, std::ostream & os, std::istream & is ) {
@@ -60,38 +66,6 @@ concept RandomNumberEngine =
     && std::constructible_from<Engine, const Engine &>
     && std::constructible_from<Engine, typename Engine::result_type>
     && std::equality_comparable<Engine> && Streamable<Engine>;
-
-// RandomNumberDistribution concept
-template <typename Dist>
-concept RandomNumberDistribution =
-    std::constructible_from<Dist> && std::copyable<Dist>
-    && ArithmeticType<typename Dist::result_type>
-    && std::copyable<typename Dist::param_type>
-    && std::equality_comparable<typename Dist::param_type>
-    && requires( Dist x, const Dist y, std::ostream & os, std::istream & is ) {
-           // Member types:
-           typename Dist::result_type;
-           typename Dist::param_type;
->>>>>>> stl_random_init
-
-template <typename T>
-concept LessThanComparable =
-    std::equality_comparable<T> && requires( const T lhs, const T rhs ) {
-        { lhs < rhs } -> std::convertible_to<bool>;
-        { lhs > rhs } -> std::convertible_to<bool>;
-    };
-
-template <typename T>
-concept OutStream = std::is_convertible_v<T, std::ostream &>;
-template <typename T>
-concept InStream = std::is_convertible_v<T, std::istream &>;
-
-template <typename T>
-concept Streamable =
-    requires( T x, const T y, std::ostream & os, std::istream & is ) {
-        { os << y } -> OutStream;
-        { is >> x } -> InStream;
-    };
 
 // Concepts for boost random distributions etc.
 // template <typename Seq, typename Iter>
