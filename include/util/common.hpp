@@ -1,15 +1,13 @@
 #pragma once
 
-#include "Eigen/Core"
+#include "Eigen/Dense"
 #include "Eigen/Sparse"
 
-#include <boost/random.hpp>
 #include <complex>
 #include <filesystem>
 #include <format>
-#include <iterator>
+#include <iostream>
 #include <map>
-#include <random>
 #include <ranges>
 #include <regex>
 #include <string>
@@ -66,66 +64,6 @@ concept RandomNumberEngine =
     && std::constructible_from<Engine, const Engine &>
     && std::constructible_from<Engine, typename Engine::result_type>
     && std::equality_comparable<Engine> && Streamable<Engine>;
-
-// Concepts for boost random distributions etc.
-// template <typename Seq, typename Iter>
-// concept SeedSeq = requires( Seq s, Iter begin, Iter end ) {
-//    typename Iter::value_type;
-//    requires sizeof( Iter::value_type ) >= 4;
-//    { s.generate( begin, end ) } -> std::same_as<void>;
-//};
-//
-// template <typename Generator>
-// concept NumberGenerator = requires( Generator u ) {
-//    typename Generator::result_type;
-//    std::numeric_limits<typename Generator::result_type>::is_specialized;
-//    requires LessThanComparable<typename Generator::result_type>;
-//    { u.operator()() } -> std::convertible_to<typename
-//    Generator::result_type>;
-//};
-//
-// template <typename Generator, typename ResultType>
-// concept UniformRandomNumberGenerator =
-//    NumberGenerator<Generator> && requires( const Generator v ) {
-//        // requires std::same_as<typename Generator::has_fixed_range, bool>;
-//        // requires std::same_as<typename Generator::min_value,
-//        //                       typename Generator::max_value>;
-//        //{ v.min() } -> std::same_as<typename Generator::min_value>;
-//        //{ v.max() } -> std::same_as<typename Generator::max_value>;
-//        { v.min() } -> std::convertible_to<ResultType>;
-//        { v.max() } -> std::convertible_to<ResultType>;
-//    };
-//
-// template <typename Generator, typename ResultType, typename Integral>
-// concept PseudoRandomNumberGenerator =
-//    UniformRandomNumberGenerator<Generator, ResultType>
-//    && DefaultConstructible<Generator>
-//    && std::constructible_from<Generator, Integral> &&
-//    std::copyable<Generator>
-//    && std::equality_comparable<Generator> && Streamable<Generator>
-//    && std::integral<Integral>
-//    && requires( Generator u, Integral i, unsigned long long j ) {
-//           { u.seed( i ) } -> std::same_as<void>;
-//           { u.discard( j ) } -> std::same_as<void>;
-//       };
-//
-// template <std::integral Seed_t>
-// using default_generator =
-//    boost::random::mersenne_twister<Seed_t, 624, 397, 31, Seed_t{ 0x9908b0df
-//    },
-//                                    11, 7, 0x9d2c5680, 15, Seed_t{ 0xefc60000
-//                                    }, 18, 334, 6425566U>;
-//
-// template <typename Distribution, typename Generator>
-// concept RandomDistribution =
-//    NumberGenerator<Distribution> && std::copyable<Distribution>
-//    && Streamable<Distribution> && UniformRandomNumberGenerator<Generator>
-//    && requires( Distribution u, const Distribution v, Generator e,
-//                 std::ostream & os, std::istream & is ) {
-//           typename Distribution::input_type;
-//           { u.reset() } -> std::same_as<void>;
-//           { u( e ) } -> std::same_as<typename Generator::result_type>;
-//       };
 
 // Concept for weight types
 template <typename T>

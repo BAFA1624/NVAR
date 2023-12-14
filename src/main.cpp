@@ -1,11 +1,9 @@
 #include "CSV/simple_csv.hpp"
 #include "ESN/ESN_util.hpp"
-#include "Eigen/Dense"
 #include "NVAR/NVAR.hpp"
 #include "nlohmann/json.hpp"
 
-#include <array> //exec
-#include <boost/math/distributions.hpp>
+#include <array>  //exec
 #include <cstdio> // exec
 #include <format>
 #include <iostream>

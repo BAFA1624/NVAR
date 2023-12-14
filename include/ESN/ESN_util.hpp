@@ -2,9 +2,7 @@
 
 #include "util/common.hpp"
 
-#include <boost/math/distributions.hpp>
-#include <boost/random.hpp>
-#include <numeric>
+#include <random>
 
 namespace ESN
 {
