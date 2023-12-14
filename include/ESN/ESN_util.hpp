@@ -12,17 +12,21 @@ namespace ESN
 using namespace UTIL;
 
 // Generates sparse matrix
-template <Weight T, typename distribution>
+template <Weight T, RandomNumberEngine Generator = std::mersenne_twister_engine<
+                        unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff,
+                        7, 0x9d2c5680, 15, 0xefc60000, 18, 1812433253>>
 constexpr inline SMat<T>
 generate_sparse(
-    const Index rows, const Index cols, const T sparsity, const auto seed,
-    const auto distribution, const auto generator,
-    const std::function<T( const T )> & gen_value =
-        []( [[maybe_unused]] const T x ) { return T{ 1. }; } ) {
-    // Check valid threshold
-    if ( !( 0 <= sparsity && 1 >= sparsity ) ) {
+    const Index rows, const Index cols, const T sparsity,
+    const typename Generator::result_type seed =
+        typename Generator::result_type{ 0 },
+    const std::function<T( const T, Generator & )> & gen_value =
+        []( [[maybe_unused]] const T x, [[maybe_unused]] Generator & y ) {
+            return T{ 1. };
+        } ) {
+    if ( T{ 0. } > sparsity || T{ 1. } < sparsity ) {
         std::cerr << std::format(
-            "Matrix sparsity must be bound by: 0 <= sparsity <= 1 "
+            "Matrix sparsity must satisfy: 0 <= sparsity <= 1 "
             "(sparsity = "
             "{})\n",
             sparsity );
@@ -30,23 +34,19 @@ generate_sparse(
     }
 
     // Get random value generator & distribution generator
-    generator.reset( seed );
-
-    // Get threshold value based on threshold, & the min, & max of the given
-    // distribution
-    const T threshold{ boost::math::quantile( distribution, sparsity ) };
-    std::cout << std::format(
-        "distribution.min() = {}, distribution.max() = {}n\nthreshold = "
-        "{}\n",
-        distribution.min(), distribution.max(), threshold );
+    auto gen{ Generator( seed ) };
+    gen.discard( 100 );
+    auto distribution{ std::uniform_real_distribution<T>( 0.0, 1.0 ) };
 
     // Storage for triplets reserved based on estimated no. of elements
     std::vector<Eigen::Triplet<T, Index>> triplets(
         static_cast<std::size_t>( static_cast<T>( rows * cols ) * sparsity ) );
     for ( Index i{ 0 }; i < rows; ++i ) {
         for ( Index j{ 0 }; j < cols; ++j ) {
-            if ( const auto x{ distribution( generator ) }; x < threshold ) {
-                triplets.push_back( Eigen::Triplet{ i, j, gen_value( x ) } );
+            const auto x{ distribution( gen ) };
+            if ( x < sparsity ) {
+                triplets.push_back(
+                    Eigen::Triplet{ i, j, gen_value( x, gen ) } );
             }
         }
     }
