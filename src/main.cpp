@@ -63,12 +63,22 @@ shape_str( const ConstRefMat<T, R, C> m ) {
     return std::format( "({}, {})", m.rows(), m.cols() );
 }
 
+template <UTIL::Weight T, RandomNumberEngine Generator>
+T
+normal_0_2( [[maybe_unused]] const T x, Generator & gen ) {
+    static std::normal_distribution<T> dist( 20., 2.0 );
+    return dist( gen );
+}
+
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-    const auto smat{ ESN::generate_sparse<double, unsigned>(
-        Index{ 10 }, Index{ 10 }, 0.5, 0,
-        []( [[maybe_unused]] const auto x ) { return 1.0; },
-        std::normal_distribution<double>( 0.0, 2.0 ) ) };
+    using generator =
+        std::mersenne_twister_engine<unsigned, 32, 624, 397, 31, 0x9908b0df, 11,
+                                     0xffffffff, 7, 0x9d2c5680, 15, 0xefc60000,
+                                     18, 1812433253>;
+
+    const auto smat{ ESN::generate_sparse<double, generator>(
+        Index{ 10 }, Index{ 10 }, 0.1, 125812 ) };
     std::cout << smat << std::endl;
 
     const std::filesystem::path data_path{
