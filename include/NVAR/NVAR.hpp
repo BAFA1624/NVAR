@@ -13,7 +13,7 @@ namespace NVAR
 using namespace UTIL;
 
 template <Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
-          bool target_difference = false>
+          bool target_difference = false, opt_t Opt = opt_t::L2>
 class NVAR
 {
     private:
@@ -58,8 +58,8 @@ class NVAR
     construct_total_vec( const ConstRefMat<T> samples ) const noexcept;
 
     [[nodiscard]] constexpr inline Mat<T>
-    ridge_regress( const ConstRefMat<T> labels,
-                   const ConstRefMat<T> total_feature_vec ) noexcept;
+    train_W_out( const ConstRefMat<T> labels,
+                 const ConstRefMat<T> total_feature_vec ) noexcept;
 
     public:
     NVAR( const ConstRefMat<T> samples, const ConstRefMat<T> labels,
@@ -96,10 +96,10 @@ class NVAR
             linear_features, nonlinear_features ) };
 
         if constexpr ( target_difference ) {
-            m_w_out = ridge_regress( labels - samples, total_features );
+            m_w_out = train_W_out( labels - samples, total_features );
         }
         else {
-            m_w_out = ridge_regress( labels, total_features );
+            m_w_out = train_W_out( labels, total_features );
         }
 
         if ( m_reconstruct_training ) {
@@ -236,18 +236,19 @@ NVAR<T, Nonlin, target_difference>::construct_total_vec(
 
 template <Weight T, nonlinear_t Nonlin, bool target_difference>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR<T, Nonlin, target_difference>::ridge_regress(
+NVAR<T, Nonlin, target_difference>::train_W_out(
     const ConstRefMat<T> labels,
     const ConstRefMat<T> total_feature_vec ) noexcept {
-    const auto feature_vec_product{ total_feature_vec
-                                    * total_feature_vec.transpose() };
-    const auto tikhonov_matrix{
-        m_ridge_param * Mat<T>::Identity( m_n_total_feat, m_n_total_feat )
-    };
-    // L2 regularization adapts linear regression to ill-posed problems
-    const auto sum{ feature_vec_product + tikhonov_matrix };
-    const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
-    return labels.transpose() * ( factor * total_feature_vec ).transpose();
+    if constexpr ( Opt == opt_t::L2 ) {
+        return tikhonov_regularization<T>( total_feature_vec, labels,
+                                           m_ridge_param );
+    }
+    else {
+        std::cerr << std::format(
+            "The selected regularization is currently unimplemented for the "
+            "NVAR class. ({})\n",
+            static_cast<Index>( Opt ) );
+    }
 }
 
 template <Weight T, nonlinear_t Nonlin, bool target_difference>

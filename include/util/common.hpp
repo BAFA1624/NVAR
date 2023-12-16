@@ -138,18 +138,25 @@ inversion_condition( const ConstRefMat<T> m ) {
     return sing_values( Eigen::placeholders::last ) / sing_values( 0 );
 }
 
-// Implementation from: https://github.com/pconstr/eigen-ridge.git
+enum class opt_t : Index { L2 };
+
+// template <Weight T>
+// constexpr inline Mat<T>
+// L1_regularization( const Mat<T> X, const Mat<T> y, const T alpha ) {
+//     const auto X_2{ X * X.transpose() };
+//     const auto regularization_matrix{ alpha * Mat<T>
+// }
+
 template <Weight T>
 constexpr inline Mat<T>
-tikhonov_regularization( const Mat<T> A, const Mat<T> y, const T alpha ) {
-    const auto & svd = A.jacobiSvd( Eigen::ComputeFullU | Eigen::ComputeFullV );
-    const auto & s = svd.singularValues();
-    const auto   r = s.rows();
-    const auto & D =
-        s.cwiseQuotient( ( s.array().square() + alpha ).matrix() ).asDiagonal();
-    const auto factor = svd.matrixV().leftCols( r ) * D
-                        * svd.matrixU().transpose().topRows( r );
-    return y.transpose() * factor;
+L2_regularization( const Mat<T> X, const Mat<T> y, const T alpha ) {
+    const auto X_2{ X * X.transpose() };
+    const auto regularization_matrix{
+        alpha * Mat<T>::Identity( X_2.rows(), X_2.cols() )
+    };
+    const auto sum{ X_2 + regularization_matrix };
+    const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
+    return y.transpose() * ( factor * X ).transpose();
 }
 
 inline std::map<std::string, Index>
