@@ -9,6 +9,9 @@ namespace ESN
 
 using namespace UTIL;
 
+// Enum class to describe the initialization scheme for the input weights
+enum class input_init_t : Index { homogeneous, split };
+
 // Generates sparse matrix
 template <Weight T, RandomNumberEngine Generator = std::mersenne_twister_engine<
                         unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff,
