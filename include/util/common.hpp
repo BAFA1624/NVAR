@@ -60,10 +60,12 @@ concept RandomNumberEngine =
         { e.min() } -> std::same_as<typename Engine::result_type>;
         { e.max() } -> std::same_as<typename Engine::result_type>;
     }
-    && std::default_initializable<Engine>
+    && std::constructible_from<Engine>
     && std::constructible_from<Engine, const Engine &>
     && std::constructible_from<Engine, typename Engine::result_type>
     && std::equality_comparable<Engine> && Streamable<Engine>;
+
+// TODO: RandomNumberDistribution concept (WIP)
 
 // Concept for weight types
 template <typename T>
