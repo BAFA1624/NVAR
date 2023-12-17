@@ -158,9 +158,9 @@ class NVAR
               const std::vector<Index> & pass_through ) const noexcept;
 };
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
-NVAR<T, Nonlin, target_difference>::construct_linear_vec(
+NVAR<T, Nonlin, target_difference, Opt>::construct_linear_vec(
     const UTIL::ConstRefMat<T> samples ) const noexcept {
     UTIL::Mat<T> linear_features( m_n_linear_feat, m_n_training_inst );
     for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
@@ -169,9 +169,9 @@ NVAR<T, Nonlin, target_difference>::construct_linear_vec(
     return linear_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
-NVAR<T, Nonlin, target_difference>::construct_nonlinear_vec(
+NVAR<T, Nonlin, target_difference, Opt>::construct_nonlinear_vec(
     const ConstRefMat<T> linear_features ) const noexcept {
     Mat<T> nonlinear_features{ Mat<T>::Zero( m_n_nonlinear_feat,
                                              m_n_training_inst ) };
@@ -180,6 +180,10 @@ NVAR<T, Nonlin, target_difference>::construct_nonlinear_vec(
             []( const T x ) { return std::exp( x ); } );
     }
     else {
+        // const auto indices{ combinations_with_replacement_indices( m_d * m_k,
+        //                                                            m_p ) };
+        // nonlinear_features = apply_indices<T>( linear_features, indices );
+
         for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
             nonlinear_features.col( i ) << combinations_with_replacement<T>(
                 linear_features.col( i ), m_d * m_k, m_p );
@@ -188,9 +192,9 @@ NVAR<T, Nonlin, target_difference>::construct_nonlinear_vec(
     return nonlinear_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline Vec<T>
-NVAR<T, Nonlin, target_difference>::construct_nonlinear_inst(
+NVAR<T, Nonlin, target_difference, Opt>::construct_nonlinear_inst(
     const ConstRefVec<T> linear_feature ) const noexcept {
     Vec<T> nonlinear_feature{ Vec<T>::Zero( m_n_nonlinear_feat ) };
     if constexpr ( Nonlin == nonlinear_t::exp ) {
@@ -204,9 +208,9 @@ NVAR<T, Nonlin, target_difference>::construct_nonlinear_inst(
     return nonlinear_feature;
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR<T, Nonlin, target_difference>::construct_total_vec(
+NVAR<T, Nonlin, target_difference, Opt>::construct_total_vec(
     const ConstRefMat<T> linear_features,
     const ConstRefMat<T> nonlinear_features ) const noexcept {
     Mat<T> total_features{ Mat<T>::Zero( m_n_total_feat, m_n_training_inst ) };
@@ -225,23 +229,22 @@ NVAR<T, Nonlin, target_difference>::construct_total_vec(
     return total_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR<T, Nonlin, target_difference>::construct_total_vec(
+NVAR<T, Nonlin, target_difference, Opt>::construct_total_vec(
     const ConstRefMat<T> samples ) const noexcept {
     const auto linear_features{ construct_linear_vec( samples ) };
     const auto nonlinear_features{ construct_nonlinear_vec( linear_features ) };
     return construct_total_vec( linear_features, nonlinear_features );
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline Mat<T>
-NVAR<T, Nonlin, target_difference>::train_W_out(
+NVAR<T, Nonlin, target_difference, Opt>::train_W_out(
     const ConstRefMat<T> labels,
     const ConstRefMat<T> total_feature_vec ) noexcept {
     if constexpr ( Opt == opt_t::L2 ) {
-        return tikhonov_regularization<T>( total_feature_vec, labels,
-                                           m_ridge_param );
+        return L2_regularization<T>( total_feature_vec, labels, m_ridge_param );
     }
     else {
         std::cerr << std::format(
@@ -251,9 +254,9 @@ NVAR<T, Nonlin, target_difference>::train_W_out(
     }
 }
 
-template <Weight T, nonlinear_t Nonlin, bool target_difference>
+template <Weight T, nonlinear_t Nonlin, bool target_difference, opt_t Opt>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
-NVAR<T, Nonlin, target_difference>::forecast(
+NVAR<T, Nonlin, target_difference, Opt>::forecast(
     const ConstRefMat<T> warmup, const ConstRefMat<T> labels,
     const std::vector<Index> & pass_through ) const noexcept {
     [[maybe_unused]] const Index max_idx{ *std::max_element(
