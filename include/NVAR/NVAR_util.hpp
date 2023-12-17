@@ -57,7 +57,7 @@ def_total_size( const Index d, const Index k, const Index p,
 }
 
 constexpr inline std::vector<std::vector<Index>>
-combinations_with_replacement( const Index n, const Index p ) {
+combinations_with_replacement_indices( const Index n, const Index p ) {
     if ( p == 0 ) {
         return {};
     }
@@ -92,6 +92,22 @@ combinations_with_replacement( const Index n, const Index p ) {
     }
 
     return result;
+}
+
+template <Weight T>
+constexpr inline Mat<T>
+apply_indices( const ConstRefMat<T>                    m,
+               const std::vector<std::vector<Index>> & indices ) {
+    auto       result{ Mat<T>::Ones( static_cast<Index>( indices.size() ),
+                                     m.cols() ) };
+    const auto calculate_values{ [&indices, &m]( const Index i,
+                                                 const Index j ) -> T {
+        T      val{ 1. };
+        for ( const auto & idx : indices[i] ) { val *= m( idx, j ); }
+        return val;
+    } };
+    return Mat<T>::NullaryExpr( static_cast<Index>( indices.size() ), m.cols(),
+                                calculate_values );
 }
 
 template <Weight T>
