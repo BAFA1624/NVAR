@@ -3,7 +3,8 @@
 #include "NVAR/NVAR.hpp"
 #include "nlohmann/json.hpp"
 
-#include <array>  //exec
+#include <array> //exec
+#include <chrono>
 #include <cstdio> // exec
 #include <format>
 #include <iostream>
@@ -71,14 +72,23 @@ normal_0_2( [[maybe_unused]] const T x, Generator & gen ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
-    using generator =
-        std::mersenne_twister_engine<unsigned, 32, 624, 397, 31, 0x9908b0df, 11,
-                                     0xffffffff, 7, 0x9d2c5680, 15, 0xefc60000,
-                                     18, 1812433253>;
+    // using generator =
+    //     std::mersenne_twister_engine<std::uint_fast32_t, 32, 624, 397, 31,
+    //                                  0x9908b0df, 11, 0xffffffff, 7,
+    //                                  0x9d2c5680, 15, 0xefc60000, 18,
+    //                                  1812433253>;
+    using generator = std::ranlux24_base;
 
-    const auto smat{ ESN::generate_sparse<double, generator>(
-        Index{ 10 }, Index{ 10 }, 0.1, 125812 ) };
-    std::cout << smat << std::endl;
+    const auto start = std::chrono::steady_clock::now();
+    const auto smat{ ESN::generate_sparse<double, false, generator>(
+        Index{ 10000 }, Index{ 3 }, 0.2, 125812 ) };
+    const auto finish = std::chrono::steady_clock::now();
+    // std::cout << smat << std::endl;
+    std::cout << std::format(
+        "Constructed in {}.\n",
+        std::chrono::duration_cast<std::chrono::microseconds>( finish
+                                                               - start ) );
+
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
