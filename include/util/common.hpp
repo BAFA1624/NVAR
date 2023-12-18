@@ -13,6 +13,45 @@
 #include <string>
 #include <type_traits>
 
+// Ensure any passed macro is "stringified"
+#define STRINGIFY( x ) #x
+#define STRING( x )    STRINGIFY( x )
+
+// Defines of correctly typed bitwise operators for a specified enum type
+// clang-format off
+#define ENUM_FLAG_OP_RAW( enum_t, op )                                     \
+    inline enum_t operator op ( const enum_t lhs, const enum_t rhs ) {     \
+        return static_cast< enum_t >(                                      \
+            static_cast<std::underlying_type_t< enum_t >>( lhs )           \
+                op static_cast<std::underlying_type_t< enum_t >>( rhs ) ); \
+    }
+#define ENUM_FLAG_REF_OP( enum_t, op )                                    \
+    inline enum_t & operator op ## = ( enum_t & lhs, const enum_t rhs ) { \
+        return static_cast< enum_t & >(                                   \
+            static_cast<std::underlying_type_t< enum_t >&>( lhs ) op ## =  \
+                static_cast<std::underlying_type_t< enum_t >>( rhs ) );   \
+    }
+// clang-format on
+
+#define ENUM_FLAG_OP( enum_t, op ) consteval ENUM_FLAG_OP_RAW( enum_t, op );
+// ENUM_FLAG_REF_OP( enum_t, op );
+// ENUM_FLAG_OP_RAW( enum_t, op );
+
+// clang-format off
+#define ENUM_FLAGS( enum_t )                                         \
+    static_assert(                                                   \
+        std::is_enum< enum_t >::value,                               \
+        "Provided type to BIT_OPS must be an enum class. (" __FILE__ \
+        ":" STRING( __LINE__ ) ")\n" );                              \
+    consteval inline enum_t operator~( const enum_t a ) {            \
+        return static_cast< enum_t >(                                \
+            ~static_cast<std::underlying_type_t< enum_t >>( a ) );   \
+    }                                                                \
+    ENUM_FLAG_OP( enum_t, | )                                        \
+    ENUM_FLAG_OP( enum_t, & )                                        \
+    ENUM_FLAG_OP( enum_t, ^)
+// clang-format on
+
 namespace UTIL
 {
 
