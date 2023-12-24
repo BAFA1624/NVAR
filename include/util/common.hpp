@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Eigen/Dense"
+#include "Eigen/Eigenvalues"
 #include "Eigen/Sparse"
 
 #include <complex>
@@ -108,7 +109,7 @@ concept RandomNumberEngine =
 
 // Concept for weight types
 template <typename T>
-concept Weight = std::floating_point<T>; //|| is_complex<T>::value;
+concept Weight = std::floating_point<T> || is_complex<T>::value;
 
 // Typedef for all integral types. Same as Eigen::Index.
 using Index = std::ptrdiff_t;
@@ -151,12 +152,15 @@ template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using RefMat = Eigen::Ref<Mat<T, R, C>>;
 template <Weight T, Index R = Eigen::Dynamic, Index C = Eigen::Dynamic>
 using ConstRefMat = Eigen::Ref<const Mat<T, R, C>>;
-template <Weight T>
-using SMat = Eigen::SparseMatrix<T, Eigen::ColMajor, Index>;
-template <Weight T>
-using RefSMat = Eigen::Ref<SMat<T>>;
-template <Weight T>
-using ConstRefSMat = Eigen::Ref<const SMat<T>>;
+template <Weight T, Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral _StorageIndex = Index>
+using SMat = Eigen::SparseMatrix<T, _Options, _StorageIndex>;
+template <Weight T, Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral _StorageIndex = Index>
+using RefSMat = Eigen::Ref<SMat<T, _Options, _StorageIndex>>;
+template <Weight T, Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral _StorageIndex = Index>
+using ConstRefSMat = Eigen::Ref<const SMat<T, _Options, _StorageIndex>>;
 
 // Return type for train/test split functions
 template <Weight T, Index R = -1, Index C = -1>
@@ -167,38 +171,147 @@ using FeatureVecShape = std::vector<std::tuple<Index, Index>>;
 
 // String version of Eigen::Matrix shape
 template <Weight T, Index R = -1, Index C = -1>
-std::string
-mat_shape_str( const ConstRefMat<T, R, C> m ) {
+inline std::string
+mat_shape_str( const ConstRefMat<T, R, C> & m ) {
+    return std::format( "({}, {})", m.rows(), m.cols() );
+}
+template <Weight T>
+inline std::string
+mat_shape_str( const ConstRefSMat<T> & m ) {
     return std::format( "({}, {})", m.rows(), m.cols() );
 }
 
 template <Weight T>
 constexpr inline T
-inversion_condition( const ConstRefMat<T> m ) {
+inversion_condition( const ConstRefMat<T> & m ) {
     const auto sing_values = m.jacobiSvd().singularValues();
     return sing_values( Eigen::placeholders::last ) / sing_values( 0 );
 }
 
-enum class opt_t : Index { L2 };
-
-// template <Weight T>
-// constexpr inline Mat<T>
-// L1_regularization( const Mat<T> X, const Mat<T> y, const T alpha ) {
-//     const auto X_2{ X * X.transpose() };
-//     const auto regularization_matrix{ alpha * Mat<T>
-// }
+// Solver concept
+template <typename S /* Solver */ /*, typename... Args*/>
+concept Solver = requires( S s, const ConstRefMat<typename S::value_t> & X,
+                           const ConstRefMat<typename S::value_t> & y ) {
+    requires Weight<typename S::value_t>;
+    { s.solve( X, y ) } -> std::convertible_to<Mat<typename S::value_t>>;
+}; // && std::constructible_from<S, Args...>;
 
 template <Weight T>
-constexpr inline Mat<T>
-L2_regularization( const Mat<T> X, const Mat<T> y, const T alpha ) {
-    const auto X_2{ X * X.transpose() };
-    const auto regularization_matrix{
-        alpha * Mat<T>::Identity( X_2.rows(), X_2.cols() )
-    };
-    const auto sum{ X_2 + regularization_matrix };
-    const auto factor{ sum.completeOrthogonalDecomposition().pseudoInverse() };
-    return y.transpose() * ( factor * X ).transpose();
-}
+class L2Solver
+{
+    private:
+    T m_ridge;
+
+    public:
+    L2Solver( const T ridge ) : m_ridge( ridge ) {}
+
+    using value_t = T;
+
+    constexpr inline Mat<T> solve( const ConstRefMat<T> & X,
+                                   const ConstRefMat<T> & y ) const noexcept {
+        const auto X_2{ X * X.transpose() };
+        const auto regularization_matrix{
+            m_ridge * Mat<T>::Identity( X_2.rows(), X_2.cols() )
+        };
+        const auto sum{ X_2 + regularization_matrix };
+        const auto factor{ sum.fullPivLu().inverse() };
+        return y.transpose() * ( factor * X ).transpose();
+    }
+};
+
+static_assert( Solver<L2Solver<double>> );
+
+// DataPreprocessor concept
+template <typename P>
+concept DataPreprocessor =
+    requires( P processor, const ConstRefMat<typename P::value_t> & data ) {
+        requires Weight<typename P::value_t>;
+        {
+            processor.pre_process( data )
+        } -> std::convertible_to<Mat<typename P::value_t>>;
+        { processor.initialised() } -> std::convertible_to<bool>;
+    } && std::constructible_from<P>;
+
+template <Weight T>
+class Normalizer
+{
+    private:
+    bool m_initialised;
+
+    [[nodiscard]] constexpr inline std::tuple<Index, Index>
+    dimensions( const ConstRefMat<T> & data ) const noexcept {
+        return std::pair{ data.rows(), data.cols() };
+    }
+
+    public:
+    using value_t = T;
+
+    [[nodiscard]] constexpr inline Mat<T>
+    pre_process( const ConstRefMat<T> & data ) {
+        return ( data.colwise() - data.colwise().minCoeff() )
+               / ( data.colwise().maxCoeff() - data.colwise().minCoeff() );
+    }
+    [[nodiscard]] constexpr inline bool initialised() const noexcept {
+        return m_initialised;
+    }
+};
+static_assert( DataPreprocessor<Normalizer<double>> );
+
+template <Weight T>
+class Standardizer
+{
+    private:
+    bool           m_initialised;
+    std::vector<T> m_std;
+    std::vector<T> m_mean;
+
+    [[nodiscard]] constexpr inline std::pair<Index, Index>
+    dimensions( const ConstRefMat<T> & data ) const noexcept {
+        return std::pair{ data.rows(), data.cols() };
+    }
+    [[nodiscard]] constexpr inline std::vector<T>
+    mean( const ConstRefMat<T> & data ) const noexcept {
+        std::vector<T> means( static_cast<std::size_t>( data.cols() ) );
+        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+            means[i] = data.col( i ).mean();
+        }
+        return means;
+    }
+    [[nodiscard]] constexpr inline std::vector<T>
+    std( const ConstRefMat<T> & data ) const noexcept {
+        std::vector<T> std( static_cast<std::size_t>( data.cols() ) );
+        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+            const auto & mean{ m_mean[i] };
+            std[i] = std::sqrt(
+                ( data.col( i ) - mean )
+                    .unaryExpr( []( const auto x ) { return x * x; } )
+                    .sum()
+                / static_cast<T>( data.rows() - 1 ) );
+        }
+        return std;
+    }
+
+    public:
+    using value_t = T;
+
+    [[nodiscard]] constexpr inline Mat<T>
+    pre_process( const ConstRefMat<T> & data ) {
+        m_mean = mean( data );
+        m_std = std( data );
+        m_initialised = true;
+
+        Mat<T> standardised( data.rows(), data.cols() );
+        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+            standardised.col( i ) = ( data.col( i ) - m_mean[i] ) / m_std[i];
+        }
+
+        return standardised;
+    }
+    [[nodiscard]] constexpr inline bool initialised() const noexcept {
+        return m_initialised;
+    }
+};
+static_assert( DataPreprocessor<Standardizer<double>> );
 
 inline std::map<std::string, Index>
 parse_filename( const std::string_view filename ) {
@@ -271,7 +384,7 @@ get_filename( const std::map<std::string, Index> & file_params ) {
 
 template <Weight T>
 constexpr inline DataPair<T>
-train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
+train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
              const Index k, const Index s, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
@@ -306,7 +419,7 @@ train_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
 
 template <Weight T>
 DataPair<T>
-test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
+test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
             const Index k, const Index s, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
@@ -339,7 +452,7 @@ test_split( const ConstRefMat<T> raw_data, const FeatureVecShape & shape,
 
 template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
-data_split( const ConstRefMat<T> train_data, const ConstRefMat<T> test_data,
+data_split( const ConstRefMat<T> & train_data, const ConstRefMat<T> & test_data,
             const FeatureVecShape & shape, const Index k, const Index s,
             const Index stride = 1 ) {
     return { train_split<T>( train_data, shape, k, s, stride ),
@@ -348,17 +461,18 @@ data_split( const ConstRefMat<T> train_data, const ConstRefMat<T> test_data,
 
 template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
-data_split( const ConstRefMat<T> data, const double train_test_ratio,
+data_split( const ConstRefMat<T> & data, const double train_test_ratio,
             const FeatureVecShape & shape, const Index k, const Index s,
             const Index stride = 1 ) {
     const Index train_size{ static_cast<Index>(
         static_cast<double>( data.rows() ) * train_test_ratio ) },
         test_size{ data.rows() - train_size };
 
-    const ConstRefMat<T> train_data{ data.topRows( train_size ) };
-    const ConstRefMat<T> test_data{ data.bottomRows( test_size ) };
+    // const ConstRefMat<T> train_data{ data.topRows( train_size ) };
+    // const ConstRefMat<T> test_data{ data.bottomRows( test_size ) };
 
-    return data_split<T>( train_data, test_data, shape, k, s, stride );
+    return data_split<T>( /*train_data, test_data*/ data.topRows( train_size ),
+                          data.bottomRows( test_size ), shape, k, s, stride );
 }
 
 } // namespace UTIL
