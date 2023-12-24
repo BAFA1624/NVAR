@@ -96,7 +96,7 @@ combinations_with_replacement_indices( const Index n, const Index p ) {
 
 template <Weight T>
 constexpr inline Mat<T>
-apply_indices( const ConstRefMat<T>                    m,
+apply_indices( const ConstRefMat<T> &                  m,
                const std::vector<std::vector<Index>> & indices ) {
     auto       result{ Mat<T>::Ones( static_cast<Index>( indices.size() ),
                                      m.cols() ) };
@@ -112,7 +112,7 @@ apply_indices( const ConstRefMat<T>                    m,
 
 template <Weight T>
 constexpr inline Vec<T>
-combinations_with_replacement( const ConstRefVec<T> v, const Index n,
+combinations_with_replacement( const ConstRefVec<T> & v, const Index n,
                                const Index p ) {
     if ( p == 0 ) {
         return Vec<T>{};
@@ -153,7 +153,7 @@ combinations_with_replacement( const ConstRefVec<T> v, const Index n,
 
 template <Weight T>
 constexpr inline Vec<T>
-construct_x_i( const ConstRefMat<T> inputs, const Index i, const Index k,
+construct_x_i( const ConstRefMat<T> & inputs, const Index i, const Index k,
                const Index s ) {
     assert( i + ( k - 1 ) * s < inputs.rows() );
     return inputs( Eigen::seqN( i + ( k - 1 ) * s, k, -s ),
@@ -162,7 +162,7 @@ construct_x_i( const ConstRefMat<T> inputs, const Index i, const Index k,
 }
 template <Weight T>
 constexpr inline Vec<T>
-construct_x_i( const ConstRefMat<T> input, const Index k, const Index s ) {
+construct_x_i( const ConstRefMat<T> & input, const Index k, const Index s ) {
     assert( input.rows() == s * ( k - 1 ) + 1 );
     return input( Eigen::seqN( s * ( k - 1 ), k, -s ),
                   Eigen::placeholders::all )
@@ -170,8 +170,8 @@ construct_x_i( const ConstRefMat<T> input, const Index k, const Index s ) {
 }
 template <Weight T>
 constexpr inline Mat<T>
-cycle_inputs( const ConstRefMat<T> prev_input,
-              const ConstRefMat<T> new_value ) {
+cycle_inputs( const ConstRefMat<T> & prev_input,
+              const ConstRefMat<T> & new_value ) {
     const Index n{ prev_input.rows() };
     auto        result = Mat<T>( prev_input.rows(), prev_input.cols() );
     result.bottomRows( n - 1 ) = prev_input.topRows( n - 1 );
