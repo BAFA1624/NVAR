@@ -16,9 +16,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-set(CMAKE_CXX_FLAGS_DEBUG "-fconcepts-diagnostics-depth=3 -Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
-set(CMAKE_CXX_FLAGS_RELEASE "-Wno-error=maybe-uninitialized -Wno-error=deprecated-enum-enum-conversion -Wno-error=class-memaccess -Werror -DNDEBUG -march=native -Wall -Wextra -pedantic -O3")
+set(CMAKE_CXX_FLAGS_DEBUG "-fopenmp -fconcepts-diagnostics-depth=3 -Wall -Wextra -Wconversion -pedantic -O0 -ggdb")
+set(CMAKE_CXX_FLAGS_RELEASE "-fopenmp -Wno-error=deprecated-declarations -Wno-error=maybe-uninitialized -Wno-error=deprecated-enum-enum-conversion -Wno-error=class-memaccess -Werror -DNDEBUG -march=native -Wall -Wextra -pedantic -O3")
 
 option(JSON_ImplicitConversions OFF)
 
@@ -143,6 +142,21 @@ add_custom_command(
 	COMMENT "Plotting custom features."
 )
 
+# ESN_TEST target
+add_executable(ESNtest src/main.cpp)
+target_compile_definitions(ESNtest PUBLIC ESN_TEST)
+add_custom_target(
+	ESN_test
+	COMMAND ESNtest
+	DEPENDS ESNtest
+	COMMENT "Testing ESN"
+)
+add_custom_command(
+	TARGET ESNtest POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+
 # Testing target stuff
 add_executable(unit_test src/unit_test.cpp)
 add_test(test_build
@@ -164,3 +178,4 @@ target_link_libraries(double_scroll PRIVATE ${LINK_LIBS})
 target_link_libraries(hhmodel PRIVATE ${LINK_LIBS})
 target_link_libraries(customfeat PRIVATE ${LINK_LIBS})
 target_link_libraries(unit_test PRIVATE ${LINK_LIBS})
+target_link_libraries(ESNtest PRIVATE ${LINK_LIBS})
