@@ -313,6 +313,37 @@ class Standardizer
 };
 static_assert( DataPreprocessor<Standardizer<double>> );
 
+template <Weight T>
+constexpr inline Mat<T>
+coeff_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
+    if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
+        std::cerr << std::format(
+            "coeff_RMSE: samples & labels must have matching dimensions (X: "
+            "{}, y: {})\n",
+            mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
+        exit( EXIT_FAILURE );
+    }
+
+    const T sqrt_N_reciprocal{ 1 / std::sqrt( static_cast<T>( X.rows() ) ) };
+
+    return ( X - y ).unaryExpr( []( const T x ) { return std::abs( x ); } )
+           * sqrt_N_reciprocal;
+}
+
+template <Weight T>
+constexpr inline Vec<T>
+RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
+    if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
+        std::cerr << std::format(
+            "coeff_RMSE: samples & labels must have matching dimensions (X: "
+            "{}, y: {})\n",
+            mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
+        exit( EXIT_FAILURE );
+    }
+
+    return coeff_RMSE( X, y ).colwise().sum().transpose();
+}
+
 inline std::map<std::string, Index>
 parse_filename( const std::string_view filename ) {
     const std::string re{
