@@ -318,7 +318,7 @@ constexpr inline RowVec<T>
 RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
     if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
         std::cerr << std::format(
-            "coeff_RMSE: samples & labels must have matching dimensions (X: "
+            "RMSE: samples & labels must have matching dimensions (X: "
             "{}, y: {})\n",
             mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
         exit( EXIT_FAILURE );
@@ -330,6 +330,63 @@ RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
                  .sum()
              / static_cast<T>( X.rows() ) )
         .unaryExpr( []( const T x ) { return std::sqrt( x ); } );
+}
+
+template <Weight T>
+constexpr inline Mat<T>
+windowed_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y,
+               const Index window_length ) {
+    if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
+        std::cerr << std::format(
+            "windowed_RMSE: samples & labels must have matching dimensions (X: "
+            "{}, y: {})\n",
+            mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
+        exit( EXIT_FAILURE );
+    }
+
+    if ( window_length > X.rows() || window_length < 0 ) {
+        std::cerr << std::format(
+            "windowed_RMSE: window_length ({}) must be <= data length ({}) & > "
+            "0.\n",
+            window_length, X.rows() );
+
+        exit( EXIT_FAILURE );
+    }
+
+    const Index n_windows{ X.rows() / window_length },
+        remainder{ X.rows() % window_length };
+
+    Mat<T> RMSE_values( n_windows, X.cols() );
+
+    // Window size = window_length
+    for ( Index i{ 0 }; i < n_windows - remainder; ++i ) {
+        const Index start{ i * window_length },
+            end{ ( i + 1 ) * window_length - 1 };
+
+        const ConstRefMat<T> & Xref{ X( Eigen::seq( start, end ),
+                                        Eigen::placeholders::all ) };
+
+        const ConstRefMat<T> & yref{ y( Eigen::seq( start, end ),
+                                        Eigen::placeholders::all ) };
+
+        RMSE_values( i, Eigen::placeholders::all ) = RMSE( Xref, yref );
+    }
+
+    // Window size = window_length + 1
+    Index offset{ 0 };
+    for ( Index i{ n_windows - remainder }; i < n_windows; ++i ) {
+        const Index start{ i * window_length + offset++ },
+            end{ start + window_length };
+
+        const ConstRefMat<T> & Xref{ X( Eigen::seq( start, end ),
+                                        Eigen::placeholders::all ) };
+        const ConstRefMat<T> & yref{ y( Eigen::seq( start, end ),
+                                        Eigen::placeholders::all ) };
+
+        RMSE_values( i, Eigen::placeholders::all ) = RMSE( Xref, yref );
+    }
+
+    return RMSE_values;
 }
 
 inline std::map<std::string, Index>
