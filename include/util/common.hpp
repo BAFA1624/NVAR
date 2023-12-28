@@ -224,12 +224,14 @@ static_assert( Solver<L2Solver<double>> );
 // DataPreprocessor concept
 template <typename P>
 concept DataProcessor =
-    requires( P processor, const ConstRefMat<typename P::value_t> & data ) {
+    requires( const P                                  processor,
+              const ConstRefMat<typename P::value_t> & data ) {
         requires Weight<typename P::value_t>;
         {
             processor.pre_process( data )
         } -> std::convertible_to<Mat<typename P::value_t>>;
-    } && std::constructible_from<P>;
+    }
+    && std::constructible_from<P>;
 
 template <Weight T>
 class NullProcessor
@@ -249,9 +251,16 @@ class Normalizer
     using value_t = T;
 
     [[nodiscard]] constexpr inline Mat<T>
-    pre_process( const ConstRefMat<T> & data ) {
-        return ( data.colwise() - data.colwise().minCoeff() )
-               / ( data.colwise().maxCoeff() - data.colwise().minCoeff() );
+    pre_process( const ConstRefMat<T> & data ) const noexcept {
+        Mat<T> normalised( data.rows(), data.cols() );
+        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+            const T min_coeff{ data.col( i ).minCoeff() },
+                max_coeff{ data.col( i ).maxCoeff() };
+
+            normalised.col( i ) = ( data.col( i ).array() - min_coeff )
+                                  / ( max_coeff - min_coeff );
+        }
+        return normalised;
     }
 };
 static_assert( DataProcessor<Normalizer<double>> );
@@ -260,13 +269,6 @@ template <Weight T>
 class Standardizer
 {
     private:
-    std::vector<T> m_std;
-    std::vector<T> m_mean;
-
-    [[nodiscard]] constexpr inline std::pair<Index, Index>
-    dimensions( const ConstRefMat<T> & data ) const noexcept {
-        return std::pair{ data.rows(), data.cols() };
-    }
     [[nodiscard]] constexpr inline std::vector<T>
     mean( const ConstRefMat<T> & data ) const noexcept {
         std::vector<T> means( static_cast<std::size_t>( data.cols() ) );
@@ -276,12 +278,12 @@ class Standardizer
         return means;
     }
     [[nodiscard]] constexpr inline std::vector<T>
-    std( const ConstRefMat<T> & data ) const noexcept {
+    std( const ConstRefMat<T> & data,
+         const std::vector<T> & means ) const noexcept {
         std::vector<T> std( static_cast<std::size_t>( data.cols() ) );
         for ( Index i{ 0 }; i < data.cols(); ++i ) {
-            const auto & mean{ m_mean[i] };
             std[i] = std::sqrt(
-                ( data.col( i ) - mean )
+                ( data.col( i ).array() - means[i] )
                     .unaryExpr( []( const auto x ) { return x * x; } )
                     .sum()
                 / static_cast<T>( data.rows() - 1 ) );
@@ -293,13 +295,14 @@ class Standardizer
     using value_t = T;
 
     [[nodiscard]] constexpr inline Mat<T>
-    pre_process( const ConstRefMat<T> & data ) {
-        m_mean = mean( data );
-        m_std = std( data );
+    pre_process( const ConstRefMat<T> & data ) const noexcept {
+        const auto means = mean( data );
+        const auto stds = std( data, means );
 
         Mat<T> standardised( data.rows(), data.cols() );
         for ( Index i{ 0 }; i < data.cols(); ++i ) {
-            standardised.col( i ) = ( data.col( i ) - m_mean[i] ) / m_std[i];
+            standardised.col( i ) =
+                ( data.col( i ).array() - means[i] ) / stds[i];
         }
 
         return standardised;
@@ -455,10 +458,11 @@ get_filename( const std::map<std::string, Index> & file_params ) {
 template <Weight T>
 constexpr inline DataPair<T>
 train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
-             const Index warmup_offset, const Index stride = 1 ) {
-    Mat<T> data{ raw_data(
+             const Index warmup_offset, const Index stride = 1,
+             DataProcessor auto processor = NullProcessor<T>{} ) {
+    Mat<T> data{ processor.pre_process( raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
-        Eigen::placeholders::all ) };
+        Eigen::placeholders::all ) ) };
 
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<1> ) },
@@ -490,10 +494,11 @@ train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
 template <Weight T>
 DataPair<T>
 test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
-            const Index warmup_offset, const Index stride = 1 ) {
-    Mat<T> data{ raw_data(
+            const Index warmup_offset, const Index stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{} ) {
+    Mat<T> data{ processor.pre_process( raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
-        Eigen::placeholders::all ) };
+        Eigen::placeholders::all ) ) };
 
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<0> ) },
@@ -524,23 +529,27 @@ template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & train_data, const ConstRefMat<T> & test_data,
             const FeatureVecShape & shape, const Index warmup_offset,
-            const Index stride = 1 ) {
-    return { train_split<T>( train_data, shape, warmup_offset, stride ),
-             test_split<T>( test_data, shape, warmup_offset, stride ) };
+            const Index        stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{} ) {
+    return {
+        train_split<T>( train_data, shape, warmup_offset, stride, processor ),
+        test_split<T>( test_data, shape, warmup_offset, stride, processor )
+    };
 }
 
 template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & data, const double train_test_ratio,
             const FeatureVecShape & shape, const Index warmup_offset,
-            const Index stride = 1 ) {
+            const Index        stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{} ) {
     const Index train_size{ static_cast<Index>(
         static_cast<double>( data.rows() ) * train_test_ratio ) },
         test_size{ data.rows() - train_size };
 
     return data_split<T>( data.topRows( train_size ),
                           data.bottomRows( test_size ), shape, warmup_offset,
-                          stride );
+                          stride, processor );
 }
 
 } // namespace UTIL
