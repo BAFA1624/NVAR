@@ -223,7 +223,7 @@ static_assert( Solver<L2Solver<double>> );
 
 // DataPreprocessor concept
 template <typename P>
-concept DataPreprocessor =
+concept DataProcessor =
     requires( P processor, const ConstRefMat<typename P::value_t> & data ) {
         requires Weight<typename P::value_t>;
         {
@@ -254,7 +254,7 @@ class Normalizer
                / ( data.colwise().maxCoeff() - data.colwise().minCoeff() );
     }
 };
-static_assert( DataPreprocessor<Normalizer<double>> );
+static_assert( DataProcessor<Normalizer<double>> );
 
 template <Weight T>
 class Standardizer
@@ -305,7 +305,7 @@ class Standardizer
         return standardised;
     }
 };
-static_assert( DataPreprocessor<Standardizer<double>> );
+static_assert( DataProcessor<Standardizer<double>> );
 
 template <Weight T>
 constexpr inline RowVec<T>
