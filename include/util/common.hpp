@@ -461,7 +461,7 @@ get_filename( const std::map<std::string, Index> & file_params ) {
 template <Weight T>
 constexpr inline DataPair<T>
 train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
-             const Index k, const Index s, const Index stride = 1 ) {
+             const Index warmup_offset, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
         Eigen::placeholders::all ) };
@@ -471,8 +471,8 @@ train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
         n{ static_cast<Index>( data.rows() ) },
         d{ static_cast<Index>( shape.size() ) },
         train_size{ n - max_delay - 1 },
-        label_size{ n - max_delay - 1 - s * ( k - 1 ) },
-        label_offset{ s * ( k - 1 ) };
+        label_size{ n - max_delay - 1 - warmup_offset },
+        label_offset{ warmup_offset };
 
     Mat<T> train_samples( train_size, d ), train_labels( label_size, d );
 
@@ -496,7 +496,7 @@ train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
 template <Weight T>
 DataPair<T>
 test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
-            const Index k, const Index s, const Index stride = 1 ) {
+            const Index warmup_offset, const Index stride = 1 ) {
     Mat<T> data{ raw_data(
         Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
         Eigen::placeholders::all ) };
@@ -504,7 +504,7 @@ test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<0> ) },
         d{ static_cast<Index>( shape.size() ) },
-        n{ static_cast<Index>( data.rows() ) }, warmup_offset{ s * ( k - 1 ) },
+        n{ static_cast<Index>( data.rows() ) },
         test_sz{ n - max_delay - warmup_offset - 1 };
 
     Mat<T> test_warmup( warmup_offset + 1, d ), test_labels( test_sz, d );
@@ -529,26 +529,24 @@ test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
 template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & train_data, const ConstRefMat<T> & test_data,
-            const FeatureVecShape & shape, const Index k, const Index s,
+            const FeatureVecShape & shape, const Index warmup_offset,
             const Index stride = 1 ) {
-    return { train_split<T>( train_data, shape, k, s, stride ),
-             test_split<T>( test_data, shape, k, s, stride ) };
+    return { train_split<T>( train_data, shape, warmup_offset, stride ),
+             test_split<T>( test_data, shape, warmup_offset, stride ) };
 }
 
 template <Weight T>
 constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & data, const double train_test_ratio,
-            const FeatureVecShape & shape, const Index k, const Index s,
+            const FeatureVecShape & shape, const Index warmup_offset,
             const Index stride = 1 ) {
     const Index train_size{ static_cast<Index>(
         static_cast<double>( data.rows() ) * train_test_ratio ) },
         test_size{ data.rows() - train_size };
 
-    // const ConstRefMat<T> train_data{ data.topRows( train_size ) };
-    // const ConstRefMat<T> test_data{ data.bottomRows( test_size ) };
-
-    return data_split<T>( /*train_data, test_data*/ data.topRows( train_size ),
-                          data.bottomRows( test_size ), shape, k, s, stride );
+    return data_split<T>( data.topRows( train_size ),
+                          data.bottomRows( test_size ), shape, warmup_offset,
+                          stride );
 }
 
 } // namespace UTIL
