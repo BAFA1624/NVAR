@@ -229,20 +229,22 @@ concept DataPreprocessor =
         {
             processor.pre_process( data )
         } -> std::convertible_to<Mat<typename P::value_t>>;
-        { processor.initialised() } -> std::convertible_to<bool>;
     } && std::constructible_from<P>;
+
+template <Weight T>
+class NullProcessor
+{
+    public:
+    using value_t = T;
+    [[nodiscard]] constexpr inline Mat<T>
+    pre_process( const ConstRefMat<T> & data ) const noexcept {
+        return data;
+    }
+};
 
 template <Weight T>
 class Normalizer
 {
-    private:
-    bool m_initialised;
-
-    [[nodiscard]] constexpr inline std::tuple<Index, Index>
-    dimensions( const ConstRefMat<T> & data ) const noexcept {
-        return std::pair{ data.rows(), data.cols() };
-    }
-
     public:
     using value_t = T;
 
@@ -251,9 +253,6 @@ class Normalizer
         return ( data.colwise() - data.colwise().minCoeff() )
                / ( data.colwise().maxCoeff() - data.colwise().minCoeff() );
     }
-    [[nodiscard]] constexpr inline bool initialised() const noexcept {
-        return m_initialised;
-    }
 };
 static_assert( DataPreprocessor<Normalizer<double>> );
 
@@ -261,7 +260,6 @@ template <Weight T>
 class Standardizer
 {
     private:
-    bool           m_initialised;
     std::vector<T> m_std;
     std::vector<T> m_mean;
 
@@ -298,7 +296,6 @@ class Standardizer
     pre_process( const ConstRefMat<T> & data ) {
         m_mean = mean( data );
         m_std = std( data );
-        m_initialised = true;
 
         Mat<T> standardised( data.rows(), data.cols() );
         for ( Index i{ 0 }; i < data.cols(); ++i ) {
@@ -306,9 +303,6 @@ class Standardizer
         }
 
         return standardised;
-    }
-    [[nodiscard]] constexpr inline bool initialised() const noexcept {
-        return m_initialised;
     }
 };
 static_assert( DataPreprocessor<Standardizer<double>> );
