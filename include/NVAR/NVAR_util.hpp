@@ -168,6 +168,7 @@ construct_x_i( const ConstRefMat<T> & input, const Index k, const Index s ) {
                   Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
+
 template <Weight T>
 constexpr inline Mat<T>
 cycle_inputs( const ConstRefMat<T> & prev_input,
@@ -177,6 +178,12 @@ cycle_inputs( const ConstRefMat<T> & prev_input,
     result.bottomRows( n - 1 ) = prev_input.topRows( n - 1 );
     result.topRows( 1 ) = new_value;
     return result;
+}
+
+
+constexpr inline Index
+warmup_offset( const Index k, const Index s ) {
+    return s * ( k - 1 );
 }
 
 } // namespace NVAR
