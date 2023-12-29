@@ -19,9 +19,15 @@ template <UTIL::Weight T, input_t W_in_init = input_t::default_input,
           std::signed_integral  _StorageIndex = UTIL::Index>
 class ESN
 {
-    private:
-    typedef typename Generator::result_type Seed_t;
+    public:
+    // typedefs
+    using weight_type = T;
+    using solver_type = S;
+    using gen_type = Generator;
+    using index_type = _StorageIndex;
 
+    private:
+    using Seed_t = typename Generator::result_type;
     // Compile time check whether to use dense/sparse input weights & adjacency
     // matrix
     constexpr static bool m_dense_input =

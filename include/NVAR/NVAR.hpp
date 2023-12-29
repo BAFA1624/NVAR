@@ -14,6 +14,12 @@ template <UTIL::Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
           UTIL::Solver S = UTIL::L2Solver<T>, bool target_difference = false>
 class NVAR
 {
+    public:
+    // Public typedefs
+    using weight_type = T;
+    using solver_type = S;
+    using index_type = UTIL::Index;
+
     private:
     // Important NVAR state variables
     UTIL::Index  m_d;
