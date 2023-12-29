@@ -188,10 +188,10 @@ inversion_condition( const ConstRefMat<T> & m ) {
 
 // Solver concept
 template <typename S /* Solver */ /*, typename... Args*/>
-concept Solver = requires( S s, const ConstRefMat<typename S::value_t> & X,
-                           const ConstRefMat<typename S::value_t> & y ) {
-    requires Weight<typename S::value_t>;
-    { s.solve( X, y ) } -> std::convertible_to<Mat<typename S::value_t>>;
+concept Solver = requires( S s, const ConstRefMat<typename S::value_type> & X,
+                           const ConstRefMat<typename S::value_type> & y ) {
+    requires Weight<typename S::value_type>;
+    { s.solve( X, y ) } -> std::convertible_to<Mat<typename S::value_type>>;
 }; // && std::constructible_from<S, Args...>;
 
 template <Weight T>
@@ -203,7 +203,7 @@ class L2Solver
     public:
     L2Solver( const T ridge ) : m_ridge( ridge ) {}
 
-    using value_t = T;
+    using value_type = T;
 
     constexpr inline Mat<T> solve( const ConstRefMat<T> & X,
                                    const ConstRefMat<T> & y ) const noexcept {
@@ -222,12 +222,12 @@ static_assert( Solver<L2Solver<double>> );
 // DataPreprocessor concept
 template <typename P>
 concept DataProcessor =
-    requires( const P                                  processor,
-              const ConstRefMat<typename P::value_t> & data ) {
-        requires Weight<typename P::value_t>;
+    requires( const P                                     processor,
+              const ConstRefMat<typename P::value_type> & data ) {
+        requires Weight<typename P::value_type>;
         {
             processor.pre_process( data )
-        } -> std::convertible_to<Mat<typename P::value_t>>;
+        } -> std::convertible_to<Mat<typename P::value_type>>;
     }
     && std::constructible_from<P>;
 
@@ -235,18 +235,20 @@ template <Weight T>
 class NullProcessor
 {
     public:
-    using value_t = T;
+    using value_type = T;
     [[nodiscard]] constexpr inline Mat<T>
     pre_process( const ConstRefMat<T> & data ) const noexcept {
         return data;
     }
 };
 
+static_assert( DataProcessor<NullProcessor<double>> );
+
 template <Weight T>
 class Normalizer
 {
     public:
-    using value_t = T;
+    using value_type = T;
 
     [[nodiscard]] constexpr inline Mat<T>
     pre_process( const ConstRefMat<T> & data ) const noexcept {
@@ -290,7 +292,7 @@ class Standardizer
     }
 
     public:
-    using value_t = T;
+    using value_type = T;
 
     [[nodiscard]] constexpr inline Mat<T>
     pre_process( const ConstRefMat<T> & data ) const noexcept {
