@@ -83,7 +83,7 @@ if len(forecast_keys) > 1:
 
         n = len(reconstruction_data[fkey])
         ax1.plot(
-            #reconstruction_labels["t"][-n:],
+            # reconstruction_labels["t"][-n:],
             reconstruction_data[fkey],
             label=fkey,
             linestyle="",
@@ -92,7 +92,7 @@ if len(forecast_keys) > 1:
             color="r",
         )
         ax1.plot(
-            #reconstruction_labels["t"][-n:],
+            # reconstruction_labels["t"][-n:],
             reconstruction_data[lkey],
             label="True Signal",
             linestyle="-",
@@ -107,7 +107,7 @@ if len(forecast_keys) > 1:
         ax2min = min(forecast_data[lkey])
         ax2max = max(forecast_data[lkey])
         ax2.plot(
-            times,
+            #times,
             forecast_data[fkey],
             label=fkey,
             linestyle="",
@@ -116,7 +116,7 @@ if len(forecast_keys) > 1:
             color="r",
         )
         ax2.plot(
-            times,
+            #times,
             forecast_data[lkey],
             label=f"True {fkey}",
             linestyle="-",

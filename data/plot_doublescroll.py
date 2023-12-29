@@ -86,11 +86,11 @@ ax6 = fig.add_subplot(313)  # I
 
 fig.suptitle("Doublescroll Forecasting")
 ax2.set_title("V1")
-#ax2.plot(test_data["t"][-n_test:], forecast_data["v1"], label="forecast_v1")
+ax2.plot(test_data["t"][-n_test:], forecast_data["v1"], label="forecast_v1", marker="o", markersize=1, color="r", linestyle="")
 ax2.plot(test_data["t"][-n_test:], test_data["v1"][-n_test:], label="test_v1", linewidth=0.8, color="k")
 
 ax4.set_title("V2")
-#ax4.plot(test_data["t"][-n_test:], forecast_data["v2"], label="forecast_v2")
+ax4.plot(test_data["t"][-n_test:], forecast_data["v2"], label="forecast_v2", marker="o", markersize=1, color="r", linestyle="")
 ax4.plot(test_data["t"][-n_test:], test_data["v2"][-n_test:], label="test_v2", linewidth=0.8, color="k")
 
 ax6.set_title("I")
