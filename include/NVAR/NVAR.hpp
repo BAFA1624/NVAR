@@ -10,31 +10,29 @@
 namespace NVAR
 {
 
-using namespace UTIL;
-
-template <Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
-          Solver S = L2Solver<T>, bool target_difference = false>
+template <UTIL::Weight T, nonlinear_t Nonlin = nonlinear_t::poly,
+          UTIL::Solver S = UTIL::L2Solver<T>, bool target_difference = false>
 class NVAR
 {
     private:
     // Important NVAR state variables
-    Index  m_d;
-    Index  m_k;
-    Index  m_s;
-    Index  m_p;
-    bool   m_use_constant;
-    T      m_c;
-    Mat<T> m_w_out;
+    UTIL::Index  m_d;
+    UTIL::Index  m_k;
+    UTIL::Index  m_s;
+    UTIL::Index  m_p;
+    bool         m_use_constant;
+    T            m_c;
+    UTIL::Mat<T> m_w_out;
 
     // Indices used to generate nonlinear features
-    std::vector<std::vector<Index>> m_nonlinear_indices;
+    std::vector<std::vector<UTIL::Index>> m_nonlinear_indices;
 
 
     // Data sizes
-    Index m_n_training_inst;  // Number of training samples
-    Index m_n_linear_feat;    // Size of linear feature vector
-    Index m_n_nonlinear_feat; // Size of nonlinear feature vector
-    Index m_n_total_feat;     // Size of total feature vector
+    UTIL::Index m_n_training_inst;  // Number of training samples
+    UTIL::Index m_n_linear_feat;    // Size of linear feature vector
+    UTIL::Index m_n_nonlinear_feat; // Size of nonlinear feature vector
+    UTIL::Index m_n_total_feat;     // Size of total feature vector
 
     // Solver to train weights
     S m_solver;
@@ -48,27 +46,28 @@ class NVAR
     // File to write reconstructed data to
     std::filesystem::path m_reconstruction_path;
 
-    [[nodiscard]] constexpr inline Mat<T>
-    construct_linear_vec( const ConstRefMat<T> & samples ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T> construct_nonlinear_vec(
-        const ConstRefMat<T> & linear_features ) const noexcept;
-    [[nodiscard]] constexpr inline Vec<T> construct_nonlinear_inst(
-        const ConstRefVec<T> & linear_features ) const noexcept;
+    [[nodiscard]] constexpr inline UTIL::Mat<T>
+    construct_linear_vec( const UTIL::ConstRefMat<T> & samples ) const noexcept;
+    [[nodiscard]] constexpr inline UTIL::Mat<T> construct_nonlinear_vec(
+        const UTIL::ConstRefMat<T> & linear_features ) const noexcept;
+    [[nodiscard]] constexpr inline UTIL::Vec<T> construct_nonlinear_inst(
+        const UTIL::ConstRefVec<T> & linear_features ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Mat<T> construct_total_vec(
-        const ConstRefMat<T> & linear_features,
-        const ConstRefMat<T> & nonlinear_features ) const noexcept;
-    [[nodiscard]] constexpr inline Mat<T>
-    construct_total_vec( const ConstRefMat<T> & samples ) const noexcept;
+        const UTIL::ConstRefMat<T> & linear_features,
+        const UTIL::ConstRefMat<T> & nonlinear_features ) const noexcept;
+    [[nodiscard]] constexpr inline UTIL::Mat<T>
+    construct_total_vec( const UTIL::ConstRefMat<T> & samples ) const noexcept;
 
-    [[nodiscard]] constexpr inline Mat<T>
-    train_W_out( const ConstRefMat<T> & labels,
-                 const ConstRefMat<T> & total_feature_vec ) noexcept;
+    [[nodiscard]] constexpr inline UTIL::Mat<T>
+    train_W_out( const UTIL::ConstRefMat<T> & labels,
+                 const UTIL::ConstRefMat<T> & total_feature_vec ) noexcept;
 
     public:
-    NVAR( const ConstRefMat<T> & samples, const ConstRefMat<T> & labels,
-          const Index d, const Index k, const Index s, const Index p,
+    NVAR( const UTIL::ConstRefMat<T> & samples,
+          const UTIL::ConstRefMat<T> & labels, const UTIL::Index d,
+          const UTIL::Index k, const UTIL::Index s, const UTIL::Index p,
           const bool use_constant, const T constant = T{ 0. },
-          const Solver auto                solver = L2Solver<T>( T{ 0.001 } ),
+          const UTIL::Solver auto          solver = L2Solver<T>( T{ 0.001 } ),
           const bool                       reconstruct_training = false,
           const std::vector<std::string> & reconstruction_titles = {},
           const std::filesystem::path      reconstruction_path = "" ) :
@@ -93,10 +92,10 @@ class NVAR
                 labels.rows(), m_n_training_inst, m_d, m_k, m_s );
             exit( 1 );
         }
-        const Mat<T> linear_features{ construct_linear_vec( samples ) };
-        const Mat<T> nonlinear_features{ construct_nonlinear_vec(
+        const UTIL::Mat<T> linear_features{ construct_linear_vec( samples ) };
+        const UTIL::Mat<T> nonlinear_features{ construct_nonlinear_vec(
             linear_features ) };
-        const Mat<T> total_features{ construct_total_vec(
+        const UTIL::Mat<T> total_features{ construct_total_vec(
             linear_features, nonlinear_features ) };
 
         if constexpr ( target_difference ) {
@@ -108,7 +107,8 @@ class NVAR
 
         if ( m_reconstruct_training ) {
             // Set column titles to use when writing results out
-            if ( static_cast<Index>( reconstruction_titles.size() ) == m_d ) {
+            if ( static_cast<UTIL::Index>( reconstruction_titles.size() )
+                 == m_d ) {
                 m_col_titles = reconstruction_titles;
 
                 // Add titles for the labels
@@ -119,11 +119,11 @@ class NVAR
             }
             else {
                 // Titles for samples
-                for ( Index i{ 0 }; i < m_d; ++i ) {
+                for ( UTIL::Index i{ 0 }; i < m_d; ++i ) {
                     m_col_titles.push_back( std::to_string( i ) );
                 }
                 // Titles for labels
-                for ( Index i{ 0 }; i < m_d; ++i ) {
+                for ( UTIL::Index i{ 0 }; i < m_d; ++i ) {
                     m_col_titles.push_back( std::to_string( i ) + "'" );
                 }
             }
@@ -131,14 +131,14 @@ class NVAR
             // Attempt to regenerate training data
             auto regenerated{ ( m_w_out * total_features ).transpose() };
             if constexpr ( target_difference ) {
-                for ( Index r{ 0 }; r < samples.rows(); ++r ) {
+                for ( UTIL::Index r{ 0 }; r < samples.rows(); ++r ) {
                     regenerated.row( r ) += samples.row( r );
                 }
             }
 
             // Add labels for plotting
-            Mat<T> reconstruction( regenerated.rows(),
-                                   regenerated.cols() + labels.cols() );
+            UTIL::Mat<T> reconstruction( regenerated.rows(),
+                                         regenerated.cols() + labels.cols() );
             reconstruction << regenerated, labels;
 
             // Write to file
@@ -158,11 +158,13 @@ class NVAR
     }
 
     [[nodiscard]] constexpr inline UTIL::Mat<T>
-    forecast( const ConstRefMat<T> & warmup, const ConstRefMat<T> & labels,
-              const std::vector<Index> & pass_through ) const noexcept;
+    forecast( const UTIL::ConstRefMat<T> &     warmup,
+              const UTIL::ConstRefMat<T> &     labels,
+              const std::vector<UTIL::Index> & pass_through ) const noexcept;
 };
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::construct_linear_vec(
     const UTIL::ConstRefMat<T> & samples ) const noexcept {
@@ -173,12 +175,13 @@ NVAR<T, Nonlin, S, target_difference>::construct_linear_vec(
     return linear_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_vec(
-    const ConstRefMat<T> & linear_features ) const noexcept {
-    Mat<T> nonlinear_features{ Mat<T>::Zero( m_n_nonlinear_feat,
-                                             m_n_training_inst ) };
+    const UTIL::ConstRefMat<T> & linear_features ) const noexcept {
+    UTIL::Mat<T> nonlinear_features{ UTIL::Mat<T>::Zero( m_n_nonlinear_feat,
+                                                         m_n_training_inst ) };
     if constexpr ( Nonlin == nonlinear_t::exp ) {
         nonlinear_features = linear_features.unaryExpr(
             []( const T x ) { return std::exp( x ); } );
@@ -188,7 +191,7 @@ NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_vec(
         //                                                            m_p ) };
         // nonlinear_features = apply_indices<T>( linear_features, indices );
 
-        for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
+        for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
             nonlinear_features.col( i ) << combinations_with_replacement<T>(
                 linear_features.col( i ), m_d * m_k, m_p );
         }
@@ -196,11 +199,12 @@ NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_vec(
     return nonlinear_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
-[[nodiscard]] constexpr inline Vec<T>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
+[[nodiscard]] constexpr inline UTIL::Vec<T>
 NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_inst(
-    const ConstRefVec<T> & linear_feature ) const noexcept {
-    Vec<T> nonlinear_feature{ Vec<T>::Zero( m_n_nonlinear_feat ) };
+    const UTIL::ConstRefVec<T> & linear_feature ) const noexcept {
+    UTIL::Vec<T> nonlinear_feature{ UTIL::Vec<T>::Zero( m_n_nonlinear_feat ) };
     if constexpr ( Nonlin == nonlinear_t::exp ) {
         nonlinear_feature = linear_feature.unaryExpr(
             []( const T x ) { return std::exp( x ); } );
@@ -212,20 +216,22 @@ NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_inst(
     return nonlinear_feature;
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::construct_total_vec(
-    const ConstRefMat<T> & linear_features,
-    const ConstRefMat<T> & nonlinear_features ) const noexcept {
-    Mat<T> total_features{ Mat<T>::Zero( m_n_total_feat, m_n_training_inst ) };
+    const UTIL::ConstRefMat<T> & linear_features,
+    const UTIL::ConstRefMat<T> & nonlinear_features ) const noexcept {
+    UTIL::Mat<T> total_features{ UTIL::Mat<T>::Zero( m_n_total_feat,
+                                                     m_n_training_inst ) };
     if ( m_use_constant ) {
-        for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
+        for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
             total_features.col( i ) << linear_features.col( i ),
                 nonlinear_features.col( i ), m_c;
         }
     }
     else {
-        for ( Index i{ 0 }; i < m_n_training_inst; ++i ) {
+        for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
             total_features.col( i ) << linear_features.col( i ),
                 nonlinear_features.col( i );
         }
@@ -233,55 +239,48 @@ NVAR<T, Nonlin, S, target_difference>::construct_total_vec(
     return total_features;
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::construct_total_vec(
-    const ConstRefMat<T> & samples ) const noexcept {
+    const UTIL::ConstRefMat<T> & samples ) const noexcept {
     const auto linear_features{ construct_linear_vec( samples ) };
     const auto nonlinear_features{ construct_nonlinear_vec( linear_features ) };
     return construct_total_vec( linear_features, nonlinear_features );
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
-[[nodiscard]] constexpr inline Mat<T>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::train_W_out(
-    const ConstRefMat<T> & labels,
-    const ConstRefMat<T> & total_feature_vec ) noexcept {
+    const UTIL::ConstRefMat<T> & labels,
+    const UTIL::ConstRefMat<T> & total_feature_vec ) noexcept {
     return m_solver.solve( total_feature_vec, labels );
-    // if constexpr ( Opt == opt_t::L2 ) {
-    //     return L2_regularization<T>( total_feature_vec, labels, m_ridge_param
-    //     );
-    // }
-    // else {
-    //     std::cerr << std::format(
-    //         "The selected regularization is currently unimplemented for the "
-    //         "NVAR class. ({})\n",
-    //         static_cast<Index>( Opt ) );
-    // }
 }
 
-template <Weight T, nonlinear_t Nonlin, Solver S, bool target_difference>
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::forecast(
-    const ConstRefMat<T> & warmup, const ConstRefMat<T> & labels,
-    const std::vector<Index> & pass_through ) const noexcept {
-    [[maybe_unused]] const Index max_idx{ *std::max_element(
+    const UTIL::ConstRefMat<T> & warmup, const UTIL::ConstRefMat<T> & labels,
+    const std::vector<UTIL::Index> & pass_through ) const noexcept {
+    [[maybe_unused]] const UTIL::Index max_idx{ *std::max_element(
         pass_through.cbegin(), pass_through.cend() ) };
-    [[maybe_unused]] const Index min_idx{ *std::min_element(
+    [[maybe_unused]] const UTIL::Index min_idx{ *std::min_element(
         pass_through.cbegin(), pass_through.cend() ) };
     assert( max_idx < warmup.cols() && min_idx >= 0 );
 
-    const Index N{ labels.rows() };
-    Mat<T>      result{ Mat<T>::Zero( N, m_d ) };
-    RowVec<T>   new_val( 2 );
-    RowVec<T>   prev_value{ warmup.row( warmup.rows() - 1 ) };
-    Mat<T>      samples = warmup;
+    const UTIL::Index N{ labels.rows() };
+    UTIL::Mat<T>      result{ UTIL::Mat<T>::Zero( N, m_d ) };
+    UTIL::RowVec<T>   new_val( 2 );
+    UTIL::RowVec<T>   prev_value{ warmup.row( warmup.rows() - 1 ) };
+    UTIL::Mat<T>      samples = warmup;
 
-    for ( Index i{ 0 }; i < N; ++i ) {
+    for ( UTIL::Index i{ 0 }; i < N; ++i ) {
         // Construct total feature vector
-        Vec<T> lin_feat = construct_x_i<T>( samples, m_k, m_s );
-        Vec<T> nonlin_feat = construct_nonlinear_inst( lin_feat );
-        Vec<T> total_feat{ Vec<T>::Zero(
+        UTIL::Vec<T> lin_feat = construct_x_i<T>( samples, m_k, m_s );
+        UTIL::Vec<T> nonlin_feat = construct_nonlinear_inst( lin_feat );
+        UTIL::Vec<T> total_feat{ UTIL::Vec<T>::Zero(
             def_total_size<Nonlin>( m_d, m_k, m_p, m_use_constant ) ) };
         if ( m_use_constant ) {
             total_feat << lin_feat, nonlin_feat, m_c;

@@ -9,15 +9,13 @@
 namespace NVAR
 {
 
-using namespace UTIL;
-
 // Nonlinearity types
 enum class nonlinear_t { poly, exp, polyexp };
 
 // Calculates factorial for 0 <= n <= 20
 
-constexpr inline Index
-factorial_20( const Index N ) {
+constexpr inline UTIL::Index
+factorial_20( const UTIL::Index N ) {
     assert( N >= 0 && N < 21 );
     if ( N >= 21 ) {
         std::cerr << std::format( "Attempted factorial_20({}).", N )
@@ -25,22 +23,23 @@ factorial_20( const Index N ) {
         exit( EXIT_FAILURE );
     }
     if ( N == 0 ) {
-        return Index{ 1 };
+        return UTIL::Index{ 1 };
     }
-    Index val{ 1 };
-    for ( Index i{ 1 }; i <= N; ++i ) { val *= i; }
+    UTIL::Index val{ 1 };
+    for ( UTIL::Index i{ 1 }; i <= N; ++i ) { val *= i; }
     return val;
 }
 
 template <nonlinear_t Nonlinearity>
-constexpr inline Index
-def_nonlinear_size( const Index d, const Index k, const Index p ) {
+constexpr inline UTIL::Index
+def_nonlinear_size( const UTIL::Index d, const UTIL::Index k,
+                    const UTIL::Index p ) {
     if constexpr ( Nonlinearity == nonlinear_t::exp ) {
         return d * k;
     }
     else {
         if ( p == 0 ) {
-            return Index{ 0 };
+            return UTIL::Index{ 0 };
         }
         assert( d > 0 && k > 0 && p > 0 );
         return factorial_20( d * k + p - 1 )
@@ -49,23 +48,24 @@ def_nonlinear_size( const Index d, const Index k, const Index p ) {
 }
 
 template <nonlinear_t Nonlinearity>
-constexpr inline Index
-def_total_size( const Index d, const Index k, const Index p,
+constexpr inline UTIL::Index
+def_total_size( const UTIL::Index d, const UTIL::Index k, const UTIL::Index p,
                 const bool constant = true ) {
     return def_nonlinear_size<Nonlinearity>( d, k, p ) + d * k
            + ( constant ? 1 : 0 );
 }
 
-constexpr inline std::vector<std::vector<Index>>
-combinations_with_replacement_indices( const Index n, const Index p ) {
+constexpr inline std::vector<std::vector<UTIL::Index>>
+combinations_with_replacement_indices( const UTIL::Index n,
+                                       const UTIL::Index p ) {
     if ( p == 0 ) {
         return {};
     }
 
-    std::size_t        count{ 0 };
-    std::vector<Index> indices( static_cast<std::size_t>( p ), 0 );
+    std::size_t              count{ 0 };
+    std::vector<UTIL::Index> indices( static_cast<std::size_t>( p ), 0 );
 
-    std::vector<std::vector<Index>> result( static_cast<std::size_t>(
+    std::vector<std::vector<UTIL::Index>> result( static_cast<std::size_t>(
         def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) ) );
 
     while ( true ) {
@@ -85,7 +85,7 @@ combinations_with_replacement_indices( const Index n, const Index p ) {
 
         // Increment found index & adjust subsequent
         indices[static_cast<std::size_t>( j )]++;
-        for ( Index i{ j + 1 }; i < p; ++i ) {
+        for ( UTIL::Index i{ j + 1 }; i < p; ++i ) {
             indices[static_cast<std::size_t>( i )] =
                 indices[static_cast<std::size_t>( i - 1 )];
         }
@@ -94,34 +94,35 @@ combinations_with_replacement_indices( const Index n, const Index p ) {
     return result;
 }
 
-template <Weight T>
-constexpr inline Mat<T>
-apply_indices( const ConstRefMat<T> &                  m,
-               const std::vector<std::vector<Index>> & indices ) {
-    auto       result{ Mat<T>::Ones( static_cast<Index>( indices.size() ),
+template <UTIL::Weight T>
+constexpr inline UTIL::Mat<T>
+apply_indices( const UTIL::ConstRefMat<T> &                  m,
+               const std::vector<std::vector<UTIL::Index>> & indices ) {
+    auto result{ UTIL::Mat<T>::Ones( static_cast<UTIL::Index>( indices.size() ),
                                      m.cols() ) };
-    const auto calculate_values{ [&indices, &m]( const Index i,
-                                                 const Index j ) -> T {
+    const auto calculate_values{ [&indices, &m]( const UTIL::Index i,
+                                                 const UTIL::Index j ) -> T {
         T      val{ 1. };
         for ( const auto & idx : indices[i] ) { val *= m( idx, j ); }
         return val;
     } };
-    return Mat<T>::NullaryExpr( static_cast<Index>( indices.size() ), m.cols(),
-                                calculate_values );
+    return UTIL::Mat<T>::NullaryExpr(
+        static_cast<UTIL::Index>( indices.size() ), m.cols(),
+        calculate_values );
 }
 
-template <Weight T>
-constexpr inline Vec<T>
-combinations_with_replacement( const ConstRefVec<T> & v, const Index n,
-                               const Index p ) {
+template <UTIL::Weight T>
+constexpr inline UTIL::Vec<T>
+combinations_with_replacement( const UTIL::ConstRefVec<T> & v,
+                               const UTIL::Index n, const UTIL::Index p ) {
     if ( p == 0 ) {
-        return Vec<T>{};
+        return UTIL::Vec<T>{};
     }
 
-    Index count{ 0 };
+    UTIL::Index count{ 0 };
 
-    std::vector<Index> indices( static_cast<std::size_t>( p ), 0 );
-    Vec<T>             result{ Vec<T>::Ones(
+    std::vector<UTIL::Index> indices( static_cast<std::size_t>( p ), 0 );
+    UTIL::Vec<T>             result{ UTIL::Vec<T>::Ones(
         def_nonlinear_size<nonlinear_t::poly>( n, 1, p ) ) };
 
     while ( true ) {
@@ -142,7 +143,7 @@ combinations_with_replacement( const ConstRefVec<T> & v, const Index n,
 
         // Increment found index & adjust subsequent
         indices[static_cast<std::size_t>( j )]++;
-        for ( Index i{ j + 1 }; i < p; ++i ) {
+        for ( UTIL::Index i{ j + 1 }; i < p; ++i ) {
             indices[static_cast<std::size_t>( i )] =
                 indices[static_cast<std::size_t>( i - 1 )];
         }
@@ -151,38 +152,39 @@ combinations_with_replacement( const ConstRefVec<T> & v, const Index n,
     return result;
 }
 
-template <Weight T>
-constexpr inline Vec<T>
-construct_x_i( const ConstRefMat<T> & inputs, const Index i, const Index k,
-               const Index s ) {
+template <UTIL::Weight T>
+constexpr inline UTIL::Vec<T>
+construct_x_i( const UTIL::ConstRefMat<T> & inputs, const UTIL::Index i,
+               const UTIL::Index k, const UTIL::Index s ) {
     assert( i + ( k - 1 ) * s < inputs.rows() );
     return inputs( Eigen::seqN( i + ( k - 1 ) * s, k, -s ),
                    Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
-template <Weight T>
-constexpr inline Vec<T>
-construct_x_i( const ConstRefMat<T> & input, const Index k, const Index s ) {
+template <UTIL::Weight T>
+constexpr inline UTIL::Vec<T>
+construct_x_i( const UTIL::ConstRefMat<T> & input, const UTIL::Index k,
+               const UTIL::Index s ) {
     assert( input.rows() == s * ( k - 1 ) + 1 );
     return input( Eigen::seqN( s * ( k - 1 ), k, -s ),
                   Eigen::placeholders::all )
         .template reshaped<Eigen::RowMajor>();
 }
 
-template <Weight T>
-constexpr inline Mat<T>
-cycle_inputs( const ConstRefMat<T> & prev_input,
-              const ConstRefMat<T> & new_value ) {
-    const Index n{ prev_input.rows() };
-    auto        result = Mat<T>( prev_input.rows(), prev_input.cols() );
+template <UTIL::Weight T>
+constexpr inline UTIL::Mat<T>
+cycle_inputs( const UTIL::ConstRefMat<T> & prev_input,
+              const UTIL::ConstRefMat<T> & new_value ) {
+    const UTIL::Index n{ prev_input.rows() };
+    auto result = UTIL::Mat<T>( prev_input.rows(), prev_input.cols() );
     result.bottomRows( n - 1 ) = prev_input.topRows( n - 1 );
     result.topRows( 1 ) = new_value;
     return result;
 }
 
 
-constexpr inline Index
-warmup_offset( const Index k, const Index s ) {
+constexpr inline UTIL::Index
+warmup_offset( const UTIL::Index k, const UTIL::Index s ) {
     return s * ( k - 1 );
 }
 
