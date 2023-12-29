@@ -1,8 +1,6 @@
 #pragma once
 
-#include "Eigen/Dense"
-#include "Eigen/Eigenvalues"
-#include "Eigen/Sparse"
+#include "Eigen/Eigen"
 
 #include <complex>
 #include <filesystem>
