@@ -156,6 +156,22 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
 	COMMENT "Transferring compile_commands.json"
 )
+add_custom_command(
+	TARGET ESN_test POST_BUILD
+	COMMAND python3.11 ./plot_esn.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+	COMMENT "Plotting ESN forecast."
+)
+
+# RMSE test target
+add_executable(RMSEtest src/main.cpp)
+target_compile_definitions(RMSEtest PUBLIC RMSE_TEST)
+add_custom_target(
+	RMSE_test
+	COMMAND RMSEtest
+	DEPENDS RMSEtest
+	COMMENT "Testing RMSE"
+)
 
 # Testing target stuff
 add_executable(unit_test src/unit_test.cpp)
@@ -179,3 +195,4 @@ target_link_libraries(hhmodel PRIVATE ${LINK_LIBS})
 target_link_libraries(customfeat PRIVATE ${LINK_LIBS})
 target_link_libraries(unit_test PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNtest PRIVATE ${LINK_LIBS})
+target_link_libraries(RMSEtest PRIVATE ${LINK_LIBS})
