@@ -163,6 +163,27 @@ add_custom_command(
 	COMMENT "Plotting ESN forecast."
 )
 
+# ESN_DOUBLESCROLL
+add_executable(ESNdoublescroll src/main.cpp)
+target_compile_definitions(ESNdoublescroll PUBLIC ESN_DOUBLESCROLL)
+add_custom_target(
+	ESN_doublescroll
+	COMMAND ESNdoublescroll
+	DEPENDS ESNdoublescroll
+	COMMENT "ESN doublescroll"
+)
+add_custom_command(
+	TARGET ESNdoublescroll POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+add_custom_command(
+	TARGET ESN_doublescroll POST_BUILD
+	COMMAND python3.11 ./plot_esn.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+	COMMENT "Plotting ESN forecast."
+)
+
 # RMSE test target
 add_executable(RMSEtest src/main.cpp)
 target_compile_definitions(RMSEtest PUBLIC RMSE_TEST)
@@ -184,6 +205,7 @@ set_tests_properties(test_build PROPERTIES FIXTURES_SETUP test_fixture)
 add_test(test unit_test)
 set_tests_properties(test PROPERTIES FIXTURES_REQUIRED test_fixture)
 
+# Setting up linker flags
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	list(APPEND LINK_LIBS d_classic)
 endif()
@@ -196,3 +218,4 @@ target_link_libraries(customfeat PRIVATE ${LINK_LIBS})
 target_link_libraries(unit_test PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNtest PRIVATE ${LINK_LIBS})
 target_link_libraries(RMSEtest PRIVATE ${LINK_LIBS})
+target_link_libraries(ESNdoublescroll PRIVATE ${LINK_LIBS})
