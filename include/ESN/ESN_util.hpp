@@ -2,7 +2,12 @@
 
 #include "util/common.hpp"
 
-#include <chrono> // TODO: Remove
+// Includes to calculate eigenvalues of sparse matrices
+#include "Spectra/GenEigsSolver.h"
+#include "Spectra/MatOp/DenseGenMatProd.h"
+#include "Spectra/MatOp/SparseGenMatProd.h"
+
+#include <chrono>
 #include <random>
 
 namespace ESN
@@ -11,15 +16,29 @@ namespace ESN
 using namespace UTIL;
 
 // Enum class to describe the initialization scheme for the input weights
-enum class input_init_t : Index {
-    split = 1,        // Split evenly based on dimensionality of input
-    homogeneous = 2,  // Initialise inputs homogeneously
-    sparse = 4,       // Use same sparsity as adjacency matrix
-    dense = 8,        // Fill all W_in values
-    init_default = 6, // Default: homogeneous | sparse
+enum class input_t : Index {
+    split = 1,          // Split evenly based on dimensionality of input
+    homogeneous = 2,    // Initialise inputs homogeneously
+    sparse = 4,         // Use same sparsity as adjacency matrix
+    dense = 8,          // Fill all W_in values,
+    default_input = 10, // Default: homogeneous | dense
+    max
 };
+ENUM_FLAGS( input_t )
 
-ENUM_FLAGS( input_init_t );
+// Enum class to describe the initialisation scheme for the adjacency matrix
+enum class adjacency_t : Index { sparse = 1, dense = 2 /* default */, max };
+ENUM_FLAGS( adjacency_t )
+
+// Enum class to describe the feature vector construction
+enum class feature_t : Index {
+    reservoir = 1 /* Always required */,
+    linear = 2,
+    bias = 4,
+    default_feature = 7, // bias, linear, & reservoir
+    max
+};
+ENUM_FLAGS( feature_t )
 
 // This function is extremely sensitive to the chosen Generator
 template <Weight T, bool split = false,
@@ -30,8 +49,9 @@ constexpr inline std::vector<Eigen::Triplet<T, Index>>
 generate_sparse_triplets(
     const Index rows, const Index cols, const T sparsity, Generator & gen,
     const std::function<T( const T, Generator & )> & gen_value =
-        []( [[maybe_unused]] const T x, [[maybe_unused]] Generator & y ) {
-            return T{ 1. };
+        []( [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
+            static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
+            return dist( gen );
         } ) {
     if ( T{ 0. } > sparsity || T{ 1. } < sparsity ) {
         std::cerr << std::format(
@@ -54,12 +74,6 @@ generate_sparse_triplets(
                                   rows / cols );
         for ( Index i{ 0 }; i < rows % cols; ++i ) {
             sizes[static_cast<std::size_t>( i )]++;
-        }
-
-        std::cout << std::format( "Splitting {} rows into {} chunks:\n", rows,
-                                  cols );
-        for ( const auto sz : sizes ) {
-            std::cout << "\t- " << sz << std::endl;
         }
 
         Index offset{ 0 };
@@ -126,8 +140,10 @@ generate_sparse_triplets(
 template <Weight T, bool split = false,
           RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
-              0x9d2c5680, 15, 0xefc60000, 18, 1812433253>>
-constexpr inline SMat<T>
+              0x9d2c5680, 15, 0xefc60000, 18, 1812433253>,
+          Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral  _StorageIndex = Index>
+constexpr inline SMat<T, _Options, _StorageIndex>
 generate_sparse(
     const Index rows, const Index cols, const T sparsity, Generator & gen,
     const std::function<T( const T, Generator & )> & gen_value =
@@ -143,14 +159,8 @@ generate_sparse(
         exit( EXIT_FAILURE );
     }
 
-    const auto triplets_start{ std::chrono::steady_clock::now() };
     const auto triplets{ generate_sparse_triplets<T, split, Generator>(
         rows, cols, sparsity, gen, gen_value ) };
-    const auto triplets_finish{ std::chrono::steady_clock::now() };
-    std::cout << std::format(
-        "Generating triplets took: {}\n",
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            triplets_finish - triplets_start ) );
 
     SMat<T> result( rows, cols );
     result.setFromTriplets( triplets.cbegin(), triplets.cend() );
@@ -161,8 +171,10 @@ generate_sparse(
 template <Weight T, bool split = false,
           RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
-              0x9d2c5680, 15, 0xefc60000, 18, 1812433253>>
-constexpr inline SMat<T>
+              0x9d2c5680, 15, 0xefc60000, 18, 1812433253>,
+          Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral  _StorageIndex = Index>
+constexpr inline SMat<T, _Options, _StorageIndex>
 generate_sparse(
     const Index rows, const Index cols, const T sparsity,
     const typename Generator::result_type seed =
@@ -192,6 +204,121 @@ generate_sparse(
     SMat<T> result( rows, cols );
     result.setFromTriplets( triplets.cbegin(), triplets.cend() );
     return result;
+}
+
+template <std::floating_point   T,
+          Eigen::StorageOptions _Options = Eigen::RowMajor,
+          std::signed_integral  _StorageIndex = Index>
+constexpr inline Vec<std::complex<T>>
+compute_n_eigenvals(
+    const ConstRefSMat<T, _Options, _StorageIndex> m, const Index nev,
+    const Index             ncv,
+    const Spectra::SortRule selection = Spectra::SortRule::LargestMagn,
+    const Index max_it = 1000, const T tol = 1E-10,
+    const Spectra::SortRule sort = Spectra::SortRule::LargestMagn ) {
+    // Construct matrix operation object using SparseGenMatProd wrapper class
+    Spectra::SparseGenMatProd<T, _Options, _StorageIndex> op( m );
+
+    // Construct eigen solver object,  requesting the largest n eigenvalues
+    if ( !( nev + 2 <= ncv && ncv <= m.size() ) ) {
+        std::cerr << std::format(
+            "When computing sparse matrix eigenvalues with Spectra, the value "
+            "of 'ncv' must satisfy: nev + 2 ({}) <= ncv ({}) <= n ({}), where "
+            "'n' is the size "
+            "of the matrix. A good default is 2 * nev + 1 ({}).\n",
+            nev + 2, ncv, m.size(), 2 * nev + 1 );
+        exit( EXIT_FAILURE );
+    }
+    Spectra::GenEigsSolver<
+        Spectra::SparseGenMatProd<T, _Options, _StorageIndex>>
+        eigs( op, nev, ncv );
+
+    // Initialise & compute
+    eigs.init();
+    const auto nconv{ eigs.compute( selection, max_it, tol, sort ) };
+
+    const auto           info{ eigs.info() };
+    Vec<std::complex<T>> eigenvalues( nconv );
+
+    switch ( info ) {
+    case Spectra::CompInfo::Successful: {
+        eigenvalues = eigs.eigenvalues();
+    } break;
+    case Spectra::CompInfo::NotComputed: {
+        std::cerr << std::format(
+            "Eigenvalues of sparse matrix not computed yet.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    case Spectra::CompInfo::NotConverging: {
+        std::cerr << std::format(
+            "Eigenvalues of sparse matrix did not converge.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    case Spectra::CompInfo::NumericalIssue: {
+        std::cerr << std::format(
+            "Eigenvalues of sparse matrix experienced numerical "
+            "instability.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    };
+
+    return eigenvalues;
+}
+
+template <std::floating_point T>
+constexpr inline Vec<std::complex<T>>
+compute_n_eigenvals_dense(
+    const ConstRefMat<T> & m, const Index nev, const Index ncv,
+    const Spectra::SortRule selection = Spectra::SortRule::LargestMagn,
+    const Index max_it = 1000, const T tol = 1E-10,
+    const Spectra::SortRule sort = Spectra::SortRule::LargestMagn ) {
+    // Construct matrix operation object using SparseGenMatProd wrapper class
+    Spectra::DenseGenMatProd<T, Eigen::ColMajor> op( m );
+
+    // Construct eigen solver object,  requesting the largest n eigenvalues
+    if ( !( nev + 2 <= ncv && ncv <= m.size() ) ) {
+        std::cerr << std::format(
+            "When computing sparse matrix eigenvalues with Spectra, the value "
+            "of 'ncv' must satisfy: nev + 2 ({}) <= ncv ({}) <= n ({}), where "
+            "'n' is the size "
+            "of the matrix. A good default is 2 * nev + 1 ({}).\n",
+            nev + 2, ncv, m.size(), 2 * nev + 1 );
+        exit( EXIT_FAILURE );
+    }
+    Spectra::GenEigsSolver<Spectra::DenseGenMatProd<T, Eigen::ColMajor>> eigs(
+        op, static_cast<int>( nev ), static_cast<int>( ncv ) );
+
+    // Initialise & compute
+    eigs.init();
+    const auto nconv{ eigs.compute( selection, static_cast<int>( max_it ), tol,
+                                    sort ) };
+
+    const auto           info{ eigs.info() };
+    Vec<std::complex<T>> eigenvalues( nconv );
+
+    switch ( info ) {
+    case Spectra::CompInfo::Successful: {
+        eigenvalues = eigs.eigenvalues();
+    } break;
+    case Spectra::CompInfo::NotComputed: {
+        std::cerr << std::format(
+            "Eigenvalues of dense matrix not computed yet.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    case Spectra::CompInfo::NotConverging: {
+        std::cerr << std::format(
+            "Eigenvalues of dense matrix did not converge.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    case Spectra::CompInfo::NumericalIssue: {
+        std::cerr << std::format(
+            "Eigenvalues of dense matrix experienced numerical "
+            "instability.\n" );
+        exit( EXIT_FAILURE );
+    } break;
+    };
+
+    return eigenvalues;
 }
 
 } // namespace ESN
