@@ -13,10 +13,8 @@
 namespace ESN
 {
 
-using namespace UTIL;
-
 // Enum class to describe the initialization scheme for the input weights
-enum class input_t : Index {
+enum class input_t : UTIL::Index {
     split = 1,          // Split evenly based on dimensionality of input
     homogeneous = 2,    // Initialise inputs homogeneously
     sparse = 4,         // Use same sparsity as adjacency matrix
@@ -27,11 +25,15 @@ enum class input_t : Index {
 ENUM_FLAGS( input_t )
 
 // Enum class to describe the initialisation scheme for the adjacency matrix
-enum class adjacency_t : Index { sparse = 1, dense = 2 /* default */, max };
+enum class adjacency_t : UTIL::Index {
+    sparse = 1,
+    dense = 2 /* default */,
+    max
+};
 ENUM_FLAGS( adjacency_t )
 
 // Enum class to describe the feature vector construction
-enum class feature_t : Index {
+enum class feature_t : UTIL::Index {
     reservoir = 1 /* Always required */,
     linear = 2,
     bias = 4,
@@ -41,13 +43,14 @@ enum class feature_t : Index {
 ENUM_FLAGS( feature_t )
 
 // This function is extremely sensitive to the chosen Generator
-template <Weight T, bool split = false,
-          RandomNumberEngine Generator = std::mersenne_twister_engine<
+template <UTIL::Weight T, bool split = false,
+          UTIL::RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
               0x9d2c5680, 15, 0xefc60000, 18, 1812433253>>
-constexpr inline std::vector<Eigen::Triplet<T, Index>>
+constexpr inline std::vector<Eigen::Triplet<T, UTIL::Index>>
 generate_sparse_triplets(
-    const Index rows, const Index cols, const T sparsity, Generator & gen,
+    const UTIL::Index rows, const UTIL::Index cols, const T sparsity,
+    Generator &                                      gen,
     const std::function<T( const T, Generator & )> & gen_value =
         []( [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
             static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
@@ -66,19 +69,19 @@ generate_sparse_triplets(
     auto distribution{ std::uniform_real_distribution<T>( 0.0, 1.0 ) };
 
     // Storage for triplets reserved based on estimated no. of elements
-    std::vector<Eigen::Triplet<T, Index>> triplets(
+    std::vector<Eigen::Triplet<T, UTIL::Index>> triplets(
         static_cast<std::size_t>( static_cast<T>( rows * cols ) * sparsity ) );
 
     if constexpr ( split ) {
-        std::vector<Index> sizes( static_cast<std::size_t>( cols ),
-                                  rows / cols );
-        for ( Index i{ 0 }; i < rows % cols; ++i ) {
+        std::vector<UTIL::Index> sizes( static_cast<std::size_t>( cols ),
+                                        rows / cols );
+        for ( UTIL::Index i{ 0 }; i < rows % cols; ++i ) {
             sizes[static_cast<std::size_t>( i )]++;
         }
 
-        Index offset{ 0 };
+        UTIL::Index offset{ 0 };
         for ( const auto [j, n_rows] : sizes | std::views::enumerate ) {
-            for ( Index i{ offset }; i < offset + n_rows; ++i ) {
+            for ( UTIL::Index i{ offset }; i < offset + n_rows; ++i ) {
                 const auto x{ distribution( gen ) };
                 if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
                     triplets.push_back(
@@ -89,8 +92,8 @@ generate_sparse_triplets(
         }
     }
     else {
-        for ( Index i{ 0 }; i < rows; ++i ) {
-            for ( Index j{ 0 }; j < cols; ++j ) {
+        for ( UTIL::Index i{ 0 }; i < rows; ++i ) {
+            for ( UTIL::Index j{ 0 }; j < cols; ++j ) {
                 const auto x{ distribution( gen ) };
                 if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
                     triplets.push_back(
@@ -105,13 +108,13 @@ generate_sparse_triplets(
 }
 
 // This function is extremely sensitive to the chosen Generator
-template <Weight T, bool split = false,
-          RandomNumberEngine Generator = std::mersenne_twister_engine<
+template <UTIL::Weight T, bool split = false,
+          UTIL::RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
               0x9d2c5680, 15, 0xefc60000, 18, 1812433253>>
-constexpr inline std::vector<Eigen::Triplet<T, Index>>
+constexpr inline std::vector<Eigen::Triplet<T, UTIL::Index>>
 generate_sparse_triplets(
-    const Index rows, const Index cols, const T sparsity,
+    const UTIL::Index rows, const UTIL::Index cols, const T sparsity,
     const typename Generator::result_type seed =
         typename Generator::result_type{ 0 },
     const std::function<T( const T, Generator & )> & gen_value =
@@ -137,15 +140,16 @@ generate_sparse_triplets(
 }
 
 // Generates sparse matrix
-template <Weight T, bool split = false,
-          RandomNumberEngine Generator = std::mersenne_twister_engine<
+template <UTIL::Weight T, bool split = false,
+          UTIL::RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
               0x9d2c5680, 15, 0xefc60000, 18, 1812433253>,
           Eigen::StorageOptions _Options = Eigen::RowMajor,
-          std::signed_integral  _StorageIndex = Index>
-constexpr inline SMat<T, _Options, _StorageIndex>
+          std::signed_integral  _StorageIndex = UTIL::Index>
+constexpr inline UTIL::SMat<T, _Options, _StorageIndex>
 generate_sparse(
-    const Index rows, const Index cols, const T sparsity, Generator & gen,
+    const UTIL::Index rows, const UTIL::Index cols, const T sparsity,
+    Generator &                                      gen,
     const std::function<T( const T, Generator & )> & gen_value =
         []( [[maybe_unused]] const T x, [[maybe_unused]] Generator & y ) {
             return T{ 1. };
@@ -162,21 +166,21 @@ generate_sparse(
     const auto triplets{ generate_sparse_triplets<T, split, Generator>(
         rows, cols, sparsity, gen, gen_value ) };
 
-    SMat<T> result( rows, cols );
+    UTIL::SMat<T> result( rows, cols );
     result.setFromTriplets( triplets.cbegin(), triplets.cend() );
     return result;
 }
 
 // Generates sparse matrix
-template <Weight T, bool split = false,
-          RandomNumberEngine Generator = std::mersenne_twister_engine<
+template <UTIL::Weight T, bool split = false,
+          UTIL::RandomNumberEngine Generator = std::mersenne_twister_engine<
               unsigned, 32, 624, 397, 31, 0x9908b0df, 11, 0xffffffff, 7,
               0x9d2c5680, 15, 0xefc60000, 18, 1812433253>,
           Eigen::StorageOptions _Options = Eigen::RowMajor,
-          std::signed_integral  _StorageIndex = Index>
-constexpr inline SMat<T, _Options, _StorageIndex>
+          std::signed_integral  _StorageIndex = UTIL::Index>
+constexpr inline UTIL::SMat<T, _Options, _StorageIndex>
 generate_sparse(
-    const Index rows, const Index cols, const T sparsity,
+    const UTIL::Index rows, const UTIL::Index cols, const T sparsity,
     const typename Generator::result_type seed =
         typename Generator::result_type{ 0 },
     const std::function<T( const T, Generator & )> & gen_value =
@@ -201,20 +205,20 @@ generate_sparse(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             triplets_finish - triplets_start ) );
 
-    SMat<T> result( rows, cols );
+    UTIL::SMat<T> result( rows, cols );
     result.setFromTriplets( triplets.cbegin(), triplets.cend() );
     return result;
 }
 
 template <std::floating_point   T,
           Eigen::StorageOptions _Options = Eigen::RowMajor,
-          std::signed_integral  _StorageIndex = Index>
-constexpr inline Vec<std::complex<T>>
+          std::signed_integral  _StorageIndex = UTIL::Index>
+constexpr inline UTIL::Vec<std::complex<T>>
 compute_n_eigenvals(
-    const ConstRefSMat<T, _Options, _StorageIndex> m, const Index nev,
-    const Index             ncv,
+    const UTIL::ConstRefSMat<T, _Options, _StorageIndex> m,
+    const UTIL::Index nev, const UTIL::Index ncv,
     const Spectra::SortRule selection = Spectra::SortRule::LargestMagn,
-    const Index max_it = 1000, const T tol = 1E-10,
+    const UTIL::Index max_it = 1000, const T tol = 1E-10,
     const Spectra::SortRule sort = Spectra::SortRule::LargestMagn ) {
     // Construct matrix operation object using SparseGenMatProd wrapper class
     Spectra::SparseGenMatProd<T, _Options, _StorageIndex> op( m );
@@ -237,8 +241,8 @@ compute_n_eigenvals(
     eigs.init();
     const auto nconv{ eigs.compute( selection, max_it, tol, sort ) };
 
-    const auto           info{ eigs.info() };
-    Vec<std::complex<T>> eigenvalues( nconv );
+    const auto                 info{ eigs.info() };
+    UTIL::Vec<std::complex<T>> eigenvalues( nconv );
 
     switch ( info ) {
     case Spectra::CompInfo::Successful: {
@@ -266,11 +270,12 @@ compute_n_eigenvals(
 }
 
 template <std::floating_point T>
-constexpr inline Vec<std::complex<T>>
+constexpr inline UTIL::Vec<std::complex<T>>
 compute_n_eigenvals_dense(
-    const ConstRefMat<T> & m, const Index nev, const Index ncv,
+    const UTIL::ConstRefMat<T> & m, const UTIL::Index nev,
+    const UTIL::Index       ncv,
     const Spectra::SortRule selection = Spectra::SortRule::LargestMagn,
-    const Index max_it = 1000, const T tol = 1E-10,
+    const UTIL::Index max_it = 1000, const T tol = 1E-10,
     const Spectra::SortRule sort = Spectra::SortRule::LargestMagn ) {
     // Construct matrix operation object using SparseGenMatProd wrapper class
     Spectra::DenseGenMatProd<T, Eigen::ColMajor> op( m );
@@ -293,8 +298,8 @@ compute_n_eigenvals_dense(
     const auto nconv{ eigs.compute( selection, static_cast<int>( max_it ), tol,
                                     sort ) };
 
-    const auto           info{ eigs.info() };
-    Vec<std::complex<T>> eigenvalues( nconv );
+    const auto                 info{ eigs.info() };
+    UTIL::Vec<std::complex<T>> eigenvalues( nconv );
 
     switch ( info ) {
     case Spectra::CompInfo::Successful: {
