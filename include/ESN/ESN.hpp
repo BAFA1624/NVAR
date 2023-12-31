@@ -360,6 +360,14 @@ constexpr inline UTIL::Mat<T>
 ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::wi_xi( const UTIL::ConstRefMat<T> & xi )
     const noexcept {
+    if ( xi.rows() != m_d ) {
+        std::cerr << std::format(
+            "Rows of input ot ESN::wi_xi ({}) must match number of dimensions "
+            "({}).\n",
+            xi.rows(), m_d );
+        exit( EXIT_FAILURE );
+    }
+
     UTIL::Mat<T> input{ UTIL::Mat<T>::Constant( m_d + 1, xi.cols(), m_bias ) };
     input.topRows( m_d ) = xi;
 
@@ -536,8 +544,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     if constexpr ( target_difference ) {
         m_w_out = m_solver.solve(
             feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup ),
-            y.bottomRows( y.rows() - m_n_warmup )
-                - X.bottomRows( y.rows() - m_n_warmup ) );
+            ( y - X ).bottomRows( y.rows() - m_n_warmup ) );
     }
     else {
         m_w_out = m_solver.solve(
@@ -588,7 +595,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     // Warmup stage
     for ( UTIL::Index i{ 0 }; i < m_n_warmup; ++i ) {
         // Exact labels used during warmup
-        m_xi = labels.row( i ).transpose();
+        m_xi = labels.row( i );
         m_wi_xi = wi_xi( m_xi );
         m_reservoir = R_next( m_reservoir, m_wi_xi );
     }
@@ -604,7 +611,9 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         m_xi = m_w_out * feature_vector;
 
         // Replace passthrough values
-        for ( const auto idx : pass_through ) { m_xi[idx] = labels( i, idx ); }
+        for ( const auto idx : pass_through ) {
+            m_xi( idx ) = labels( i, idx );
+        }
 
         // Write to result
         results.row( i - m_n_warmup ) = m_xi.transpose();

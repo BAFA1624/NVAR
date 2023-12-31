@@ -223,10 +223,11 @@ static_assert( Solver<L2Solver<double>> );
 template <typename P>
 concept DataProcessor =
     requires( const P                                     processor,
-              const ConstRefMat<typename P::value_type> & data ) {
+              const ConstRefMat<typename P::value_type> & data,
+              const bool                                  time_col_present ) {
         requires Weight<typename P::value_type>;
         {
-            processor.pre_process( data )
+            processor.pre_process( data, time_col_present )
         } -> std::convertible_to<Mat<typename P::value_type>>;
     }
     && std::constructible_from<P>;
@@ -237,7 +238,8 @@ class NullProcessor
     public:
     using value_type = T;
     [[nodiscard]] constexpr inline Mat<T>
-    pre_process( const ConstRefMat<T> & data ) const noexcept {
+    pre_process( const ConstRefMat<T> &      data,
+                 [[maybe_unused]] const bool time_col_present ) const noexcept {
         return data;
     }
 };
@@ -251,9 +253,10 @@ class Normalizer
     using value_type = T;
 
     [[nodiscard]] constexpr inline Mat<T>
-    pre_process( const ConstRefMat<T> & data ) const noexcept {
+    pre_process( const ConstRefMat<T> & data,
+                 const bool             time_col_present ) const noexcept {
         Mat<T> normalised( data.rows(), data.cols() );
-        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+        for ( Index i{ time_col_present ? 1 : 0 }; i < data.cols(); ++i ) {
             const T min_coeff{ data.col( i ).minCoeff() },
                 max_coeff{ data.col( i ).maxCoeff() };
 
@@ -295,12 +298,13 @@ class Standardizer
     using value_type = T;
 
     [[nodiscard]] constexpr inline Mat<T>
-    pre_process( const ConstRefMat<T> & data ) const noexcept {
+    pre_process( const ConstRefMat<T> & data,
+                 const bool             time_col_present ) const noexcept {
         const auto means = mean( data );
         const auto stds = std( data, means );
 
         Mat<T> standardised( data.rows(), data.cols() );
-        for ( Index i{ 0 }; i < data.cols(); ++i ) {
+        for ( Index i{ time_col_present ? 1 : 0 }; i < data.cols(); ++i ) {
             standardised.col( i ) =
                 ( data.col( i ).array() - means[i] ) / stds[i];
         }
@@ -332,7 +336,7 @@ RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
 template <Weight T>
 constexpr inline Mat<T>
 windowed_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y,
-               const Index window_length ) {
+               const Index window_length = 1 ) {
     if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
         std::cerr << std::format(
             "windowed_RMSE: samples & labels must have matching dimensions (X: "
@@ -459,10 +463,13 @@ template <Weight T>
 constexpr inline DataPair<T>
 train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
              const Index warmup_offset, const Index stride = 1,
-             DataProcessor auto processor = NullProcessor<T>{} ) {
-    Mat<T> data{ processor.pre_process( raw_data(
-        Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
-        Eigen::placeholders::all ) ) };
+             DataProcessor auto processor = NullProcessor<T>{},
+             const bool         time_col_present = true ) {
+    Mat<T> data{ processor.pre_process(
+        raw_data(
+            Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+            Eigen::placeholders::all ),
+        time_col_present ) };
 
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<1> ) },
@@ -495,10 +502,13 @@ template <Weight T>
 DataPair<T>
 test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
             const Index warmup_offset, const Index stride = 1,
-            DataProcessor auto processor = NullProcessor<T>{} ) {
-    Mat<T> data{ processor.pre_process( raw_data(
-        Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
-        Eigen::placeholders::all ) ) };
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
+    Mat<T> data{ processor.pre_process(
+        raw_data(
+            Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+            Eigen::placeholders::all ),
+        time_col_present ) };
 
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<0> ) },
@@ -530,11 +540,12 @@ constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & train_data, const ConstRefMat<T> & test_data,
             const FeatureVecShape & shape, const Index warmup_offset,
             const Index        stride = 1,
-            DataProcessor auto processor = NullProcessor<T>{} ) {
-    return {
-        train_split<T>( train_data, shape, warmup_offset, stride, processor ),
-        test_split<T>( test_data, shape, warmup_offset, stride, processor )
-    };
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
+    return { train_split<T>( train_data, shape, warmup_offset, stride,
+                             processor, time_col_present ),
+             test_split<T>( test_data, shape, warmup_offset, stride, processor,
+                            time_col_present ) };
 }
 
 template <Weight T>
@@ -542,14 +553,110 @@ constexpr inline std::tuple<DataPair<T>, DataPair<T>>
 data_split( const ConstRefMat<T> & data, const double train_test_ratio,
             const FeatureVecShape & shape, const Index warmup_offset,
             const Index        stride = 1,
-            DataProcessor auto processor = NullProcessor<T>{} ) {
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
     const Index train_size{ static_cast<Index>(
         static_cast<double>( data.rows() ) * train_test_ratio ) },
         test_size{ data.rows() - train_size };
 
     return data_split<T>( data.topRows( train_size ),
                           data.bottomRows( test_size ), shape, warmup_offset,
-                          stride, processor );
+                          stride, processor, time_col_present );
+}
+
+// Variant of train_split, test_split & data_split with no warmup offset
+
+template <Weight T>
+constexpr inline DataPair<T>
+train_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+             const Index        stride = 1,
+             DataProcessor auto processor = NullProcessor<T>{},
+             const bool         time_col_present = true ) {
+    Mat<T> data{ processor.pre_process(
+        raw_data(
+            Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+            Eigen::placeholders::all ),
+        time_col_present ) };
+
+    const Index max_delay{ std::ranges::max( shape
+                                             | std::views::elements<1> ) },
+        n{ static_cast<Index>( data.rows() ) },
+        d{ static_cast<Index>( shape.size() ) },
+        train_size{ n - max_delay - 1 }, label_size{ n - max_delay - 1 };
+
+    Mat<T> train_samples( train_size, d ), train_labels( label_size, d );
+
+    for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
+        const auto [data_col, delay] = feature_data;
+        const auto offset{ max_delay - delay };
+
+        train_samples.col( i ) =
+            data( Eigen::seq( offset, Eigen::placeholders::last - delay - 1 ),
+                  data_col );
+
+        train_labels.col( i ) =
+            data( Eigen::seq( offset + 1, Eigen::placeholders::last - delay ),
+                  data_col );
+    }
+
+    return std::tuple{ train_samples, train_labels };
+}
+
+template <Weight T>
+Mat<T>
+test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
+            const Index        stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
+    Mat<T> data{ processor.pre_process(
+        raw_data(
+            Eigen::seq( Eigen::fix<0>, Eigen::placeholders::last, stride ),
+            Eigen::placeholders::all ),
+        time_col_present ) };
+
+    const Index max_delay{ std::ranges::max( shape
+                                             | std::views::elements<0> ) },
+        d{ static_cast<Index>( shape.size() ) },
+        n{ static_cast<Index>( data.rows() ) }, test_sz{ n - max_delay - 1 };
+
+    Mat<T> test_labels( test_sz, d );
+
+    for ( const auto [i, feature_data] : shape | std::views::enumerate ) {
+        const auto [data_col, delay] = feature_data;
+        const auto offset{ max_delay - delay };
+
+        test_labels.col( i ) =
+            data( Eigen::seq( offset + 1, Eigen::placeholders::last - delay ),
+                  data_col );
+    }
+
+    return test_labels;
+}
+template <Weight T>
+constexpr inline std::tuple<DataPair<T>, Mat<T>>
+data_split( const ConstRefMat<T> & train_data, const ConstRefMat<T> & test_data,
+            const FeatureVecShape & shape, const Index stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
+    return { train_split<T>( train_data, shape, stride, processor,
+                             time_col_present ),
+             test_split<T>( test_data, shape, stride, processor,
+                            time_col_present ) };
+}
+
+template <Weight T>
+constexpr inline std::tuple<DataPair<T>, Mat<T>>
+data_split( const ConstRefMat<T> & data, const double train_test_ratio,
+            const FeatureVecShape & shape, const Index stride = 1,
+            DataProcessor auto processor = NullProcessor<T>{},
+            const bool         time_col_present = true ) {
+    const Index train_size{ static_cast<Index>(
+        static_cast<double>( data.rows() ) * train_test_ratio ) },
+        test_size{ data.rows() - train_size };
+
+    return data_split<T>( data.topRows( train_size ),
+                          data.bottomRows( test_size ), shape, stride,
+                          processor, time_col_present );
 }
 
 } // namespace UTIL
