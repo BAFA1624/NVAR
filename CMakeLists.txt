@@ -184,6 +184,21 @@ add_custom_command(
 	COMMENT "Plotting ESN forecast."
 )
 
+# ESN_OPT
+add_executable(ESNopt src/main.cpp)
+target_compile_definitions(ESNopt PUBLIC ESN_OPT)
+add_custom_target(
+	ESN_opt
+	COMMAND ESNopt
+	DEPENDS ESNopt
+	COMMENT "ESN hyperopt"
+)
+add_custom_command(
+	TARGET ESNopt POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+
 # RMSE test target
 add_executable(RMSEtest src/main.cpp)
 target_compile_definitions(RMSEtest PUBLIC RMSE_TEST)
@@ -219,3 +234,4 @@ target_link_libraries(unit_test PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNtest PRIVATE ${LINK_LIBS})
 target_link_libraries(RMSEtest PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNdoublescroll PRIVATE ${LINK_LIBS})
+target_link_libraries(ESNopt PRIVATE ${LINK_LIBS})

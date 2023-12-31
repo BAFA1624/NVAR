@@ -13,8 +13,6 @@
 #include <string> // exec
 #include <tuple>
 
-using namespace UTIL;
-
 template <typename T>
 concept Printable = requires( const T x ) { std::cout << x; };
 
@@ -57,21 +55,261 @@ exec( const char * const cmd ) {
     return { 0, std_output };
 }
 
-template <typename T, Index R = -1, Index C = -1>
+template <UTIL::Weight T, UTIL::Index R = -1, UTIL::Index C = -1>
 std::string
-shape_str( const ConstRefMat<T, R, C> m ) {
+shape_str( const UTIL::ConstRefMat<T, R, C> m ) {
     return std::format( "({}, {})", m.rows(), m.cols() );
 }
 
-template <UTIL::Weight T, RandomNumberEngine Generator>
+template <UTIL::Weight T, UTIL::RandomNumberEngine Generator>
 T
 normal_0_2( [[maybe_unused]] const T x, Generator & gen ) {
     static std::normal_distribution<T> dist( 20., 2.0 );
     return dist( gen );
 }
 
+template <UTIL::Weight Scalar, typename Matrix>
+inline static std::vector<std::vector<Scalar>>
+from_eigen_matrix( const Matrix & M ) {
+    std::vector<std::vector<Scalar>> m;
+    m.resize( M.rows(), std::vector<Scalar>( M.cols(), 0 ) );
+    for ( size_t i = 0; i < m.size(); i++ ) {
+        for ( size_t j = 0; j < m.front().size(); j++ ) { m[i][j] = M( i, j ); }
+    }
+    return m;
+}
+
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
+// #define ESN_OPT
+#ifdef ESN_OPT
+    using T = double;
+    using clock = std::chrono::steady_clock;
+
+    // Constant hyperparams
+    constexpr UTIL::Index d{ 2 }, data_stride{ 3 };
+    constexpr T           bias{ 1. };
+    const std::vector<std::tuple<UTIL::Index, UTIL::Index>> feature_shape{
+        { 0, 0 }, { 1, 0 }, { 2, 0 }
+    };
+
+    // Variable hyperparams
+    const std::vector<std::filesystem::path> datafiles{
+        "../data/train_test_src/17_measured.csv",
+        "../data/train_test_src/22_measured.csv"
+        "../data/train_test_src/25_measured.csv",
+    };
+    const std::vector<unsigned>    seeds{ 0, 100, 19123 };
+    const std::vector<UTIL::Index> res_sizes{ 500, 750,  1000, 250,
+                                              100, 1500, 2000 },
+        warmup_sizes{ 0, 100, 500, 1000 };
+    const std::vector<T> leak_rates{ 0.05, 0.95, 0.5 },
+        sparsity_values{ 0.1, 0.4, 0.8 }, spectral_radii{ 0.1, 0.5, 1., 1.5 },
+        alpha_values{ 1E-3, 1E-5, 1, 1E-8 };
+
+    const auto N_tests{ datafiles.size() * seeds.size() * res_sizes.size()
+                        * warmup_sizes.size() * leak_rates.size()
+                        * sparsity_values.size() * spectral_radii.size()
+                        * alpha_values.size() };
+
+    std::cout << "Running " << N_tests << "tests.\n";
+
+    for ( const auto seed : seeds ) {
+        for ( const auto & path : datafiles ) {
+            // Count to track number of tests for this file & seed
+            auto count{ 0 };
+
+            // Load data csv
+            const auto data_csv{ CSV::SimpleCSV(
+                /*filename*/ path, /*col_titles*/ true, /*skip_header*/ 0,
+                /*delim*/ ",", /*max_line_size*/ 256 )
+
+            };
+            const auto data_pool{ data_csv.atv( 0, 0 ) };
+
+            // Split into train & test sets
+            const auto [train_pair, test_labels] =
+                data_split<T>( data_pool, 0.75, feature_shape, data_stride,
+                               UTIL::Standardizer<T>{} );
+            const auto [train_samples, train_labels] = train_pair;
+
+            // Keeping track of best parameters for current file
+            unsigned    best_seed{ 0 };
+            UTIL::Index best_res{ 0 }, best_warmup{ 0 };
+            T           best_leak{ 0 }, best_sparsity{ 0 }, best_radius{ 0 },
+                best_alpha{ 0 }, best_RMSE{ 0 };
+
+            nlohmann::json file_json;
+            for ( const auto warmup : warmup_sizes ) {
+                for ( const auto radius : spectral_radii ) {
+                    for ( const auto n_node : res_sizes ) {
+                        for ( const auto sparsity : sparsity_values ) {
+                            for ( const auto leak : leak_rates ) {
+                                for ( const auto alpha : alpha_values ) {
+                                    // Initialise ESN
+                                    const auto init_start{ clock::now() };
+                                    ESN::ESN<T,
+                                             ESN::input_t::sparse
+                                                 | ESN::input_t::homogeneous,
+                                             ESN::adjacency_t::sparse,
+                                             ESN::feature_t::bias
+                                                 | ESN::feature_t::linear
+                                                 | ESN::feature_t::reservoir,
+                                             UTIL::L2Solver<T>, std::mt19937,
+                                             true>
+                                        esn(
+                                            d, n_node, leak, sparsity, radius,
+                                            seed, warmup, bias,
+                                            []( const T x ) {
+                                                return std::tanh( x );
+                                            },
+                                            UTIL::L2Solver<T>( alpha ) );
+                                    const auto init_end{ clock::now() };
+
+                                    // Train ESN
+                                    const auto train_start{ clock::now() };
+                                    esn.train( train_samples.rightCols( d ),
+                                               train_labels.rightCols( d ) );
+                                    const auto train_end{ clock::now() };
+
+                                    // Forecast ESN
+                                    const auto forecast_start{ clock::now() };
+                                    const auto forecast{ esn.forecast(
+                                        test_labels.rightCols( d ), { 0 } ) };
+                                    const auto forecast_end{ clock::now() };
+
+                                    // Statistics
+                                    const auto overall_rmse{ UTIL::RMSE<T>(
+                                        forecast,
+                                        test_labels.rightCols( d ).bottomRows(
+                                            test_labels.rows() - warmup ) ) };
+                                    const auto window_rmse{
+                                        UTIL::windowed_RMSE<T>(
+                                            forecast,
+                                            test_labels.rightCols( d )
+                                                .bottomRows( test_labels.rows()
+                                                             - warmup ) )
+                                    };
+
+                                    // Column titles for data output
+                                    const std::vector<std::string> col_titles{
+                                        "t", "I", "V", "I'", "V'", "rmse"
+                                    };
+
+                                    // Output filename
+                                    const std::string write_file{ std::format(
+                                        "esn_{}_seed_{}_res_{}_warmup_{}_leak_{"
+                                        "}_sparsity_{}_radius_{}_alpha_{}",
+                                        path.stem().string(), seed, n_node,
+                                        warmup, leak, sparsity, radius,
+                                        alpha ) };
+                                    const std::filesystem::path write_path{
+                                        std::format( "../data/forecast_data/"
+                                                     "{}.csv",
+                                                     write_file )
+                                    };
+
+                                    // Output file data
+                                    UTIL::Mat<T> output_data(
+                                        forecast.rows(),
+                                        2 + 2 * forecast.cols() );
+                                    output_data
+                                        << test_labels.leftCols( 1 ).bottomRows(
+                                               test_labels.rows() - warmup ),
+                                        forecast,
+                                        test_labels.rightCols( d ).bottomRows(
+                                            test_labels.rows() - warmup ),
+                                        window_rmse;
+
+                                    const auto write_success{
+                                        CSV::SimpleCSV::write<T>( write_path,
+                                                                  output_data,
+                                                                  col_titles )
+                                    };
+
+                                    if ( !write_success ) {
+                                        std::cout << std::format(
+                                            "Failed to write file: {}\n",
+                                            write_file );
+                                    }
+
+                                    // Add to file json
+                                    file_json[count] = {
+                                        { "seed", seed },
+                                        { "n_node", n_node },
+                                        { "warmup", warmup },
+                                        { "leak", leak },
+                                        { "sparsity", sparsity },
+                                        { "radius", radius },
+                                        { "alpha", alpha },
+                                        { "rmse", overall_rmse( 1 ) },
+                                        { "init_time",
+                                          std::chrono::duration_cast<
+                                              std::chrono::duration<double>>(
+                                              init_end - init_start )
+                                              .count() },
+                                        { "train_time",
+                                          std::chrono::duration_cast<
+                                              std::chrono::duration<double>>(
+                                              train_end - train_start )
+                                              .count() },
+                                        { "forecast_time",
+                                          std::chrono::duration_cast<
+                                              std::chrono::duration<double>>(
+                                              forecast_end - forecast_start )
+                                              .count() }
+                                    };
+
+                                    // Keep track of best parameter set so far
+                                    if ( count == 0 ) {
+                                        best_seed = seed;
+                                        best_res = n_node;
+                                        best_warmup = warmup;
+                                        best_leak = leak;
+                                        best_sparsity = sparsity;
+                                        best_radius = radius;
+                                        best_alpha = alpha;
+                                        best_RMSE = overall_rmse( 1 );
+                                    }
+                                    else {
+                                        if ( overall_rmse( 1 ) < best_RMSE ) {
+                                            best_seed = seed;
+                                            best_res = n_node;
+                                            best_warmup = warmup;
+                                            best_leak = leak;
+                                            best_sparsity = sparsity;
+                                            best_radius = radius;
+                                            best_alpha = alpha;
+                                            best_RMSE = overall_rmse( 1 );
+                                        }
+                                    }
+                                    count++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Write file_json to metadata folder
+            std::ofstream json_out(
+                std::format( "{}.json", path.stem().string() ) );
+            json_out << std::setw( 4 ) << file_json << std::endl;
+
+            // Print out best parameters for current dataset
+            std::cout << std::format(
+                "For {}, the best parameter set found was:\n\t- seed: "
+                "{}\n\t- "
+                "n_node: {}\n\t- warmup: {}\n\t- leak: {}\n\t- sparsity: "
+                "{}\n\t- "
+                "radius: {}\n\t- alpha: {}\n\t- rmse: {}\n",
+                path.string(), best_seed, best_res, best_warmup, best_leak,
+                best_sparsity, best_radius, best_alpha, best_RMSE );
+        }
+    }
+
+#endif
+#ifdef DOUBLESCROLL_OPT
+#endif
 #ifdef RMSE_TEST
     using T = double;
     const auto x{ UTIL::Mat<T>::Random( 100, 3 ) };
@@ -107,10 +345,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
     using T = double;
-    const unsigned seed{ 69 };
-    const Index    d{ 2 }, n_node{ 1000 }, n_warmup{ 200 }, data_stride{ 3 };
-    const T        leak{ 0.95 }, sparsity{ 0.2 }, spectral_radius{ 0.9 },
-        alpha{ 1E-6 }, bias{ 1. };
+    const unsigned    seed{ 69 };
+    const UTIL::Index d{ 2 }, n_node{ 1000 }, n_warmup{ 1000 },
+        data_stride{ 4 };
+    const T leak{ 0.2 }, sparsity{ 0.1 }, spectral_radius{ 0.4 }, alpha{ 1E-2 },
+        bias{ 1. };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -119,7 +358,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto w_in_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
+            static auto dist{ std::uniform_real_distribution<T>( 0, 1. ) };
             return dist( gen );
         };
     const auto adjacency_func =
@@ -135,32 +374,26 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         d, n_node, leak, sparsity, spectral_radius, seed, n_warmup );
     std::cout << std::format( "data_stride: {}\n", data_stride );
 
-    const std::vector<std::tuple<Index, Index>> feature_shape{ { 0, 0 },
-                                                               { 1, 0 },
-                                                               { 2, 0 } };
+    const std::vector<std::tuple<UTIL::Index, UTIL::Index>> feature_shape{
+        { 0, 0 }, { 1, 0 }, { 2, 0 }
+    };
 
-    const auto [train_pair, test_pair] =
-        data_split<double>( data_pool, 0.75, feature_shape, 0, data_stride,
-                            UTIL::Standardizer<T>{} );
+    const auto [train_pair, test_labels] = data_split<double>(
+        data_pool, 0.75, feature_shape, data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
-    const auto [test_warmup, test_labels] = test_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
                               shape_str<double, -1, -1>( train_samples ),
                               shape_str<double, -1, -1>( train_labels ) );
-    std::cout << std::format( "test_warmup: {}, test_labels: {}\n",
-                              shape_str<double, -1, -1>( test_warmup ),
-                              shape_str<double, -1, -1>( test_labels ) );
 
     const auto init_start{ std::chrono::steady_clock::now() };
     ESN::ESN</* value_t */ T,
-             /* input weight type */ ESN::input_t::sparse
-                 | ESN::input_t::homogeneous,
+             /* input weight type */ ESN::input_t::sparse | ESN::input_t::split,
              /* adjacency matrix type */ ESN::adjacency_t::sparse,
              /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
                  | ESN::feature_t::reservoir,
-             /* Solver type */ L2Solver<T>,
-             /* generator type */ std::ranlux24_base,
+             /* Solver type */ UTIL::L2Solver<T>,
+             /* generator type */ std::mt19937,
              /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
                      bias, activation_func, solver, w_in_func, adjacency_func );
@@ -175,7 +408,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const auto forecast_start{ std::chrono::steady_clock::now() };
 
-    const auto forecast{ split_dense.forecast( test_labels.rightCols( d ),
+    const auto forecast{ split_dense.forecast( train_samples.rightCols( d ),
                                                { 0 } ) };
 
     const auto forecast_finish{ std::chrono::steady_clock::now() };
@@ -201,17 +434,18 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const std::vector<std::string> col_titles{ "t", "I", "V", "I'", "V'" };
 
-    Mat<T> forecast_data( forecast.rows(),
-                          static_cast<UTIL::Index>( col_titles.size() ) );
+    UTIL::Mat<T> forecast_data( forecast.rows(),
+                                static_cast<UTIL::Index>( col_titles.size() ) );
 
     std::cout << std::format( "test_labels: {}, forecast: {}\n",
                               UTIL::mat_shape_str<T, -1, -1>( test_labels ),
                               UTIL::mat_shape_str<T, -1, -1>( forecast ) );
 
-    forecast_data << test_labels.leftCols( 1 ).bottomRows( test_labels.rows()
-                                                           - n_warmup ),
+    forecast_data << train_samples.leftCols( 1 ).bottomRows(
+        train_samples.rows() - n_warmup ),
         forecast,
-        test_labels.rightCols( d ).bottomRows( test_labels.rows() - n_warmup );
+        train_samples.rightCols( d ).bottomRows( train_samples.rows()
+                                                 - n_warmup );
 
     // Write to a csv
     const auto write_success{ CSV::SimpleCSV::write<T>(
@@ -251,14 +485,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto doublescroll_train_data{ doublescroll_train_csv.atv<double>() };
     const auto doublescroll_test_data{ doublescroll_test_csv.atv<double>() };
 
-    const FeatureVecShape doublescroll_feature_shape{ { 1, 0 },
-                                                      { 2, 0 },
-                                                      { 3, 0 } };
+    const UTIL::FeatureVecShape doublescroll_feature_shape{ { 1, 0 },
+                                                            { 2, 0 },
+                                                            { 3, 0 } };
 
-    const unsigned seed{ 0 };
-    const Index    d{ 3 }, n_node{ 400 }, n_warmup{ 0 }, data_stride{ 1 };
-    const T        leak{ 0.25 }, sparsity{ 0.1 }, spectral_radius{ 0.3 },
-        alpha{ 1.5E-10 }, bias{ 1. };
+    const unsigned    seed{ 0 };
+    const UTIL::Index d{ 3 }, n_node{ 500 }, n_warmup{ 0 }, data_stride{ 1 };
+    const T           leak{ 0.8 }, sparsity{ 0.1 }, spectral_radius{ 0.3 },
+        alpha{ 1.5E-7 }, bias{ 1. };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -289,22 +523,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
              /* adjacency matrix type */ ESN::adjacency_t::sparse,
              /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
                  | ESN::feature_t::reservoir,
-             /* Solver type */ L2Solver<T>,
-             /* generator type */ std::ranlux24_base,
+             /* Solver type */ UTIL::L2Solver<T>,
+             /* generator type */ std::mt19937,
              /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
                      bias, activation_func, solver, w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
 
-    const auto [doublescroll_train_pair, doublescroll_test_pair] =
+    const auto [doublescroll_train_pair, doublescroll_test_labels] =
         data_split<double>( doublescroll_train_data, doublescroll_test_data,
-                            doublescroll_feature_shape, 0, data_stride,
+                            doublescroll_feature_shape, data_stride,
                             UTIL::Standardizer<T>{} );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
-    const auto [doublescroll_warmup, doublescroll_test_labels] =
-        doublescroll_test_pair;
 
     const auto train_start{ std::chrono::steady_clock::now() };
     split_dense.train( doublescroll_train_samples.rightCols( d ),
@@ -315,7 +547,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto forecast_start{ std::chrono::steady_clock::now() };
 
     const auto forecast{ split_dense.forecast(
-        doublescroll_test_labels.rightCols( d ), { 0, 1 } ) };
+        doublescroll_test_labels.rightCols( d ), { 0, 2 } ) };
 
     const auto forecast_finish{ std::chrono::steady_clock::now() };
 
@@ -341,11 +573,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const std::vector<std::string> col_titles{ "t",  "I",   "V1", "V2",
                                                "I'", "V1'", "V2'" };
 
-    Mat<T> forecast_data( forecast.rows(),
-                          static_cast<UTIL::Index>( col_titles.size() ) );
+    UTIL::Mat<T> forecast_data( forecast.rows(),
+                                static_cast<UTIL::Index>( col_titles.size() ) );
 
-    forecast_data << doublescroll_test_labels.leftCols( 1 ), forecast,
-        doublescroll_test_labels.rightCols( d );
+    forecast_data << doublescroll_test_labels.leftCols( 1 ).bottomRows(
+        doublescroll_test_labels.rows() - n_warmup ),
+        forecast,
+        doublescroll_test_labels.rightCols( d ).bottomRows(
+            doublescroll_test_labels.rows() - n_warmup );
 
     // Write to a csv
     const auto write_success{ CSV::SimpleCSV::write<T>(
@@ -366,17 +601,17 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
-    const bool   use_const{ true };
-    const double alpha{ 1E-3 }, constant{ 1 };
-    const Index  d{ 2 }, k{ 3 }, s{ 2 }, p{ 3 }, data_stride{ 3 };
+    const bool        use_const{ true };
+    const double      alpha{ 1E-3 }, constant{ 1 };
+    const UTIL::Index d{ 2 }, k{ 3 }, s{ 2 }, p{ 3 }, data_stride{ 2 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
                               use_const ? "true" : "false", constant );
     std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
 
-    const std::vector<std::tuple<Index, Index>> feature_shape{ { 0, 0 },
-                                                               { 1, 0 },
-                                                               { 2, 0 } };
+    const std::vector<std::tuple<UTIL::Index, UTIL::Index>> feature_shape{
+        { 0, 0 }, { 1, 0 }, { 2, 0 }
+    };
 
     // const auto [train_samples, train_labels] = train_split<double>(
     //     train_data_pool, feature_shape, k, s, data_stride );
@@ -399,14 +634,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "Training NVAR.\n";
     NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        use_const, constant, L2Solver<double>( alpha ), true, { "I", "V" },
-        "../data/forecast_data/tmp.csv" );
+        use_const, constant, UTIL::L2Solver<double>( alpha ), true,
+        { "I", "V" }, "../data/forecast_data/tmp.csv" );
 
 
     std::cout << "Forecasting.\n";
     auto forecast{ test.forecast( test_warmup.rightCols( d ),
                                   test_labels.rightCols( d ),
-                                  std::vector<Index>{ 0 } ) };
+                                  std::vector<UTIL::Index>{ 0 } ) };
 
     // Write results out
     std::cout << "Writing results.\n";
@@ -420,8 +655,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "{}, test_labels.cols(): {}\n",
         forecast_col_titles.size(), test_labels.cols(), forecast.cols(),
         test_labels.cols() );
-    Mat<double> forecast_data( forecast.rows(),
-                               forecast.cols() + test_labels.cols() );
+    UTIL::Mat<double> forecast_data( forecast.rows(),
+                                     forecast.cols() + test_labels.cols() );
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
