@@ -48,6 +48,7 @@ class ESN
     Seed_t      m_seed;
     UTIL::Index m_n_warmup;
     T           m_bias;
+    T           m_input_scale;
     bool        m_train_complete;
 
     // Input weights for the ESN
@@ -118,6 +119,7 @@ class ESN
         const UTIL::Index d, const UTIL::Index n_node, const T leak,
         const T sparsity, const T spectral_radius, const Seed_t seed = 0,
         const UTIL::Index n_warmup = 100, const T bias = T{ 1. },
+        const T                             input_scale = T{ 1. },
         const std::function<T( const T )> & activation =
             []( const T x ) { return std::tanh( x ); },
         const S solver = L2Solver<T>( T{ 1E-3 } ),
@@ -187,7 +189,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::
     ESN( const UTIL::Index d, const UTIL::Index n_node, const T leak,
          const T sparsity, const T spectral_radius, const Seed_t seed,
-         const UTIL::Index n_warmup, const T bias,
+         const UTIL::Index n_warmup, const T bias, const T input_scale,
          const std::function<T( const T )> & activation, S solver,
          const std::function<T( const T, Generator & )> & W_in_func,
          const std::function<T( const T, Generator & )> & adjacency_func ) :
@@ -199,6 +201,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     m_seed( seed ),
     m_n_warmup( n_warmup ),
     m_bias( bias ),
+    m_input_scale( input_scale ),
     m_train_complete( false ),
     m_reservoir( UTIL::Vec<T>( n_node ) ),
     m_gen( seed ),
@@ -236,10 +239,10 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     // Initialise input weights
     if constexpr ( !m_dense_input ) {
-        m_w_in = init_W_in();
+        m_w_in = m_input_scale * init_W_in();
     }
     else {
-        m_w_in_dense = init_W_in_dense();
+        m_w_in_dense = m_input_scale * init_W_in_dense();
     }
 
     // Initialise adjacency matrix
@@ -581,15 +584,18 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         exit( EXIT_FAILURE );
     }
 
-    // Check pass-through indices are valid
-    if ( std::ranges::max( pass_through ) >= labels.cols()
-         || std::ranges::min( pass_through ) < 0 ) {
-        std::cerr << std::format(
-            "Pass-through indices must meet the requirement: {} > {} && 0 <= "
-            "{}.\n",
-            labels.cols(), std::ranges::max( pass_through ),
-            std::ranges::min( pass_through ) );
-        exit( EXIT_FAILURE );
+    if ( pass_through.size() != 0 ) {
+        // Check pass-through indices are valid
+        if ( std::ranges::max( pass_through ) >= labels.cols()
+             || std::ranges::min( pass_through ) < 0 ) {
+            std::cerr << std::format(
+                "Pass-through indices must meet the requirement: {} > {} && 0 "
+                "<= "
+                "{}.\n",
+                labels.cols(), std::ranges::max( pass_through ),
+                std::ranges::min( pass_through ) );
+            exit( EXIT_FAILURE );
+        }
     }
 
     // Warmup stage
