@@ -4,10 +4,11 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-mpl.rcParams["figure.dpi"] = 200
+# mpl.rcParams["figure.dpi"] = 200
+mpl.rcParams["font.family"] = "Times New Roman"
 
-savefigs = True
-show_plots = False
+savefigs = False
+show_plots = True
 transient_sz = 19000
 
 src_dir = os.path.abspath(os.path.join(os.getcwd(), "src_files"))
@@ -84,17 +85,39 @@ for N in sorted(file_types["N"]):
         file.writelines(lines)
 
     figure_name = os.path.join(os.getcwd(), "graphs", f"{N}_measured_v_integrated")
-    plt.title(str(int(N)))
-    #plt.title("Measured / Integrated Membrane Potential")
-    plt.plot(
-        times,
+
+    fig = plt.figure(figsize=(10, 6))
+    ax1 = fig.add_subplot(211)
+    ax2 = fig.add_subplot(212)
+    # plt.title(str(int(N)))
+    # plt.title("Measured / Integrated Membrane Potential")
+    ax1.plot(
+        times / 100,
         mv_data[transient_sz:],
         linestyle="-",
-        label="measured",
-        color="k"
+        label="Measured Voltage",
+        color="k",
+        linewidth=0.8,
     )
-    plt.plot(it_data, iv_data, linestyle="--", linewidth=0.8, label="integrated", color="r")
-    plt.legend()
+    ax2.plot(
+        times / 100,
+        mi_data[transient_sz:],
+        linestyle="-",
+        label="Injected Current",
+        color="k",
+        linewidth=0.8,
+    )
+    ax1.set_xlim(0, 10)
+    ax2.set_xlim(0, 10)
+    #ax1.set_ylim(-50, 45)
+    ax1.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
+    ax1.set_ylabel("Measured Voltage / mV", fontname="Times New Roman", fontsize=14)
+    ax2.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
+    ax2.set_ylabel("Injected Current / mA", fontname="Times New Roman", fontsize=14)
+
+    # plt.plot(
+    #    it_data, iv_data, linestyle="--", linewidth=0.8, label="integrated", color="r"
+    # )
     if savefigs:
         plt.savefig(figure_name, dpi=200)
     if show_plots:
