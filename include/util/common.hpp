@@ -617,7 +617,7 @@ test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
     const Index max_delay{ std::ranges::max( shape
                                              | std::views::elements<0> ) },
         d{ static_cast<Index>( shape.size() ) },
-        n{ static_cast<Index>( data.rows() ) }, test_sz{ n - max_delay - 1 };
+        n{ static_cast<Index>( data.rows() ) }, test_sz{ n - max_delay };
 
     Mat<T> test_labels( test_sz, d );
 
@@ -625,9 +625,8 @@ test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
         const auto [data_col, delay] = feature_data;
         const auto offset{ max_delay - delay };
 
-        test_labels.col( i ) =
-            data( Eigen::seq( offset + 1, Eigen::placeholders::last - delay ),
-                  data_col );
+        test_labels.col( i ) = data(
+            Eigen::seq( offset, Eigen::placeholders::last - delay ), data_col );
     }
 
     return test_labels;

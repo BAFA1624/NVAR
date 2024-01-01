@@ -81,6 +81,9 @@ from_eigen_matrix( const Matrix & M ) {
 
 int
 main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
+    const auto n_thread{ Eigen::nbThreads() };
+    std::cout << std::format( "Running with {} threads.\n", n_thread );
+    Eigen::setNbThreads( 8 );
 // #define ESN_OPT
 #ifdef ESN_OPT
     using T = double;
@@ -96,15 +99,16 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     // Variable hyperparams
     const std::vector<std::filesystem::path> datafiles{
         "../data/train_test_src/17_measured.csv",
-        "../data/train_test_src/22_measured.csv"
+        "../data/train_test_src/22_measured.csv",
         "../data/train_test_src/25_measured.csv",
     };
     const std::vector<unsigned>    seeds{ 0, 100, 19123 };
-    const std::vector<UTIL::Index> res_sizes{ 500, 750,  1000, 250,
-                                              100, 1500, 2000 },
+    const std::vector<UTIL::Index> res_sizes{
+        500, 750, 1000, 250, 100,
+    },
         warmup_sizes{ 0, 100, 500, 1000 };
     const std::vector<T> leak_rates{ 0.05, 0.95, 0.5 },
-        sparsity_values{ 0.1, 0.4, 0.8 }, spectral_radii{ 0.1, 0.5, 1., 1.5 },
+        sparsity_values{ 0.1, 0.4 }, spectral_radii{ 0.1, 0.5, 1. },
         alpha_values{ 1E-3, 1E-5, 1, 1E-8 };
 
     const auto N_tests{ datafiles.size() * seeds.size() * res_sizes.size()
@@ -112,12 +116,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                         * sparsity_values.size() * spectral_radii.size()
                         * alpha_values.size() };
 
-    std::cout << "Running " << N_tests << "tests.\n";
+    std::cout << "Running " << N_tests << " tests.\n";
 
     for ( const auto seed : seeds ) {
         for ( const auto & path : datafiles ) {
             // Count to track number of tests for this file & seed
-            auto count{ 0 };
+            auto                     count{ 0 };
+            std::chrono::duration<T> total_time{ 0 }, total_test_time{ 0 };
 
             // Load data csv
             const auto data_csv{ CSV::SimpleCSV(
@@ -146,6 +151,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                         for ( const auto sparsity : sparsity_values ) {
                             for ( const auto leak : leak_rates ) {
                                 for ( const auto alpha : alpha_values ) {
+                                    const auto start{ clock::now() };
+
+                                    std::cout << std::format(
+                                        "Running {} / {} tests...\n", count,
+                                        N_tests );
                                     // Initialise ESN
                                     const auto init_start{ clock::now() };
                                     ESN::ESN<T,
@@ -178,6 +188,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                         test_labels.rightCols( d ), { 0 } ) };
                                     const auto forecast_end{ clock::now() };
 
+                                    const auto test_time{
+                                        std::chrono::duration_cast<
+                                            std::chrono::duration<T>>(
+                                            ( forecast_end - forecast_start )
+                                            + ( train_end - train_start )
+                                            + ( init_end - init_start ) )
+                                    };
+
+                                    total_test_time += test_time;
+
+                                    const auto avg_test_time{
+                                        total_time / static_cast<T>( count + 1 )
+                                    };
+
                                     // Statistics
                                     const auto overall_rmse{ UTIL::RMSE<T>(
                                         forecast,
@@ -190,6 +214,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                                 .bottomRows( test_labels.rows()
                                                              - warmup ) )
                                     };
+
+                                    std::cout << std::format(
+                                        "\t- RMSE: {}\n\t- best_RMSE: {}\n",
+                                        overall_rmse( 1 ), best_RMSE );
 
                                     // Column titles for data output
                                     const std::vector<std::string> col_titles{
@@ -213,13 +241,14 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                     UTIL::Mat<T> output_data(
                                         forecast.rows(),
                                         2 + 2 * forecast.cols() );
+
                                     output_data
                                         << test_labels.leftCols( 1 ).bottomRows(
                                                test_labels.rows() - warmup ),
                                         forecast,
                                         test_labels.rightCols( d ).bottomRows(
                                             test_labels.rows() - warmup ),
-                                        window_rmse;
+                                        window_rmse.rightCols( 1 );
 
                                     const auto write_success{
                                         CSV::SimpleCSV::write<T>( write_path,
@@ -244,20 +273,26 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                         { "alpha", alpha },
                                         { "rmse", overall_rmse( 1 ) },
                                         { "init_time",
-                                          std::chrono::duration_cast<
-                                              std::chrono::duration<double>>(
-                                              init_end - init_start )
-                                              .count() },
+                                          std::format(
+                                              "{}",
+                                              std::chrono::duration_cast<
+                                                  std::chrono::duration<
+                                                      double>>(
+                                                  init_end - init_start ) ) },
                                         { "train_time",
-                                          std::chrono::duration_cast<
-                                              std::chrono::duration<double>>(
-                                              train_end - train_start )
-                                              .count() },
+                                          std::format(
+                                              "{}",
+                                              std::chrono::duration_cast<
+                                                  std::chrono::duration<
+                                                      double>>(
+                                                  train_end - train_start ) ) },
                                         { "forecast_time",
-                                          std::chrono::duration_cast<
-                                              std::chrono::duration<double>>(
-                                              forecast_end - forecast_start )
-                                              .count() }
+                                          std::format(
+                                              "{}", std::chrono::duration_cast<
+                                                        std::chrono::duration<
+                                                            double>>(
+                                                        forecast_end
+                                                        - forecast_start ) ) }
                                     };
 
                                     // Keep track of best parameter set so far
@@ -283,7 +318,33 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                             best_RMSE = overall_rmse( 1 );
                                         }
                                     }
+
+                                    const auto end{ clock::now() };
+
+                                    total_time += std::chrono::duration_cast<
+                                        std::chrono::duration<T>>( end
+                                                                   - start );
+
+                                    const auto avg_time{
+                                        total_time / static_cast<T>( count + 1 )
+                                    };
+
+                                    const auto remaining_seconds{
+                                        total_time
+                                        + static_cast<T>( N_tests - count - 1 )
+                                              * avg_time
+                                    };
+
+                                    std::cout << std::format(
+                                        "\t- Average test time: {}.\n\t- "
+                                        "Average iteration time: {}.\n\t- "
+                                        "Estimated remaining time: {} "
+                                        "seconds.\n",
+                                        avg_test_time, avg_time,
+                                        remaining_seconds );
+
                                     count++;
+                                    std::cout << "\t- Done.\n";
                                 }
                             }
                         }
@@ -330,9 +391,6 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "window_RMSE_10:\n" << window_RMSE_10 << std::endl;
     std::cout << "window_RMSE_11:\n" << window_RMSE_11 << std::endl;
 #endif
-    const auto n_thread{ Eigen::nbThreads() };
-    std::cout << std::format( "Running with {} threads.\n", n_thread );
-    Eigen::setNbThreads( 8 );
 #ifdef ESN_TEST
     using T = double;
 
