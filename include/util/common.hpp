@@ -325,11 +325,11 @@ RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
         exit( EXIT_FAILURE );
     }
 
-    return ( ( X - y )
-                 .unaryExpr( []( const T x ) { return x * x; } )
-                 .colwise()
-                 .sum()
-             / static_cast<T>( X.rows() ) )
+    const auto diff_squared{ ( X - y ).unaryExpr(
+        []( const T x ) { return x * x; } ) };
+    const auto col_sums{ diff_squared.colwise().sum() };
+
+    return ( col_sums / static_cast<T>( X.rows() ) )
         .unaryExpr( []( const T x ) { return std::sqrt( x ); } );
 }
 
