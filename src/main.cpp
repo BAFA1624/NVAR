@@ -117,7 +117,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                         * alpha_values.size() };
 
     std::cout << "Running " << N_tests << " tests.\n";
-
+    auto total_count{ 0 };
     for ( const auto seed : seeds ) {
         for ( const auto & path : datafiles ) {
             // Count to track number of tests for this file & seed
@@ -154,8 +154,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                     const auto start{ clock::now() };
 
                                     std::cout << std::format(
-                                        "Running {} / {} tests...\n", count,
-                                        N_tests );
+                                        "Running {} / {} tests ({}, seed: {}, "
+                                        "file: {})...\n",
+                                        total_count, N_tests, count, seed,
+                                        path.string() );
+
                                     // Initialise ESN
                                     const auto init_start{ clock::now() };
                                     ESN::ESN<T,
@@ -344,6 +347,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                         remaining_seconds );
 
                                     count++;
+                                    total_count++;
                                     std::cout << "\t- Done.\n";
                                 }
                             }
@@ -353,7 +357,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             }
             // Write file_json to metadata folder
             std::ofstream json_out(
-                std::format( "{}.json", path.stem().string() ) );
+                std::format( "{}_{}.json", path.stem().string(), seed ) );
             json_out << std::setw( 4 ) << file_json << std::endl;
 
             // Print out best parameters for current dataset
