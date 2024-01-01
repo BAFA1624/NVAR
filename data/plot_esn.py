@@ -57,7 +57,7 @@ if len(forecast_keys) > 1:
             linewidth=0.7,
             color="k",
         )
-        ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
+        #ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
         ax1.set_title(f"Forecast: {fkey}")
         ax1.legend()
 else:
@@ -86,7 +86,7 @@ else:
         linewidth=0.7,
         color="k",
     )
-    ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
+    #ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
     ax1.set_title(f"Forecast: {fkey}")
     ax1.legend()
 
