@@ -87,8 +87,9 @@ get_filename( const std::filesystem::path & trial_name ) {
         const auto hms{ std::chrono::hh_mm_ss( now - ymd ) };
 
         const auto result{ std::filesystem::path{
-            std::format( "{}_{}_{}{}", trial_name.stem().string(), ymd, hms,
-                         trial_name.extension().string() ) } };
+            trial_name.parent_path()
+            / std::format( "{}_{}_{}{}", trial_name.stem().string(), ymd, hms,
+                           trial_name.extension().string() ) } };
 
         std::cout << result << std::endl;
 
@@ -121,15 +122,16 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/train_test_src/17_measured.csv",
         "../data/train_test_src/22_measured.csv",
         "../data/train_test_src/25_measured.csv",
+        "../data/train_test_src/28_measured.csv",
     };
     const std::vector<unsigned>    seeds{ 100 };
-    const std::vector<UTIL::Index> res_sizes{ 200, 250, 300,  350,  450,
-                                              550, 850, 1050, 1550, 2050 },
+    const std::vector<UTIL::Index> res_sizes{ 200, 250, 275, 300, 325, 350,
+                                              375, 400, 450, 500, 600 },
         warmup_sizes{ 1250 };
     const std::vector<T> leak_rates{ 0.05 }, sparsity_values{ 0.1 },
-        spectral_radii{ 0.5 },
-        alpha_values{ 1E-2, 1E-3, 5E-5, 1E-6, 1E-7, 1E-8, 1E-10 },
-        input_scales{ 1.5 };
+        spectral_radii{ 0.5 }, alpha_values{ 1E-1, 1E-2, 1E-3, 1E-4, 1E-5,
+                                             1E-6, 1E-7, 1E-8, 1E-9, 1E-10 },
+        input_scales{ 0.5, 0.75, 1.0, 1.25, 1.5 };
 
     const auto N_tests{ datafiles.size() * seeds.size() * res_sizes.size()
                         * warmup_sizes.size() * leak_rates.size()
@@ -329,20 +331,23 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                                              / static_cast<T>(
                                                                  count + 1 ) };
 
-                                        const auto remaining_seconds{
+                                        const auto est_final_time{
                                             total_time
                                             + static_cast<T>( N_tests - count
                                                               - 1 )
                                                   * avg_time
+                                        };
+                                        const auto remaining_seconds{
+                                            est_final_time - total_time
                                         };
 
                                         std::cout << std::format(
                                             "\t- Average test time: {}.\n\t- "
                                             "Average iteration time: {}.\n\t- "
                                             "Estimated remaining time: {} "
-                                            "seconds.\n",
+                                            "seconds. Estimated runtime: {}\n",
                                             avg_test_time, avg_time,
-                                            remaining_seconds );
+                                            remaining_seconds, est_final_time );
 
                                         count++;
                                         total_count++;
@@ -355,8 +360,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                 }
             }
             // Write file_json to metadata folder
-            const auto json_filename{ get_filename(
-                std::format( "{}_{}.json", path.stem().string(), seed ) ) };
+            const auto json_filename{ get_filename( std::format(
+                "../data/metadata/{}_{}.json", path.stem().string(), seed ) ) };
 
             std::ofstream json_out( json_filename );
             json_out << std::setw( 4 ) << file_json << std::endl;
@@ -378,6 +383,22 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     for ( const auto & file : generated_files ) {
         std::cout << "\t- " << file << "\n";
     }
+
+    std::vector<std::string> input_files( datafiles.size() );
+    std::transform( datafiles.cbegin(), datafiles.cend(), input_files.begin(),
+                    []( const auto path ) { return path.string(); } );
+
+    nlohmann::json result_metadata;
+    result_metadata["params"] = { { "input_files", input_files },
+                                  { "seeds", seeds },
+                                  { "N", res_sizes },
+                                  { "warmup", warmup_sizes },
+                                  { "leak", leak_rates },
+                                  { "sparsity", sparsity_values },
+                                  { "radius", spectral_radii },
+                                  { "alpha", alpha_values },
+                                  { "scale", input_scales } };
+    result_metadata["output_files"] = generated_files;
 
 #endif
 #ifdef DOUBLESCROLL_OPT
@@ -415,9 +436,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     using T = double;
     const unsigned    seed{ 100 };
-    const UTIL::Index d{ 2 }, n_node{ 350 }, n_warmup{ 1250 }, data_stride{ 2 };
-    const T           leak{ 0.05 }, sparsity{ 0.1 }, spectral_radius{ 0.5 },
-        alpha{ 1E-3 }, bias{ 1. }, input_scale{ 1.5 };
+    const UTIL::Index d{ 2 }, n_node{ 750 }, n_warmup{ 000 }, data_stride{ 2 };
+    const T           leak{ 0.05 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
+        alpha{ 1E-5 }, bias{ 1. }, input_scale{ 1.5 };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
