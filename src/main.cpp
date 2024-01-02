@@ -125,13 +125,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/train_test_src/28_measured.csv",
     };
     const std::vector<unsigned>    seeds{ 100 };
-    const std::vector<UTIL::Index> res_sizes{ 200, 250, 275, 300, 325, 350,
-                                              375, 400, 450, 500, 600 },
-        warmup_sizes{ 1250 };
-    const std::vector<T> leak_rates{ 0.05 }, sparsity_values{ 0.1 },
-        spectral_radii{ 0.5 }, alpha_values{ 1E-1, 1E-2, 1E-3, 1E-4, 1E-5,
-                                             1E-6, 1E-7, 1E-8, 1E-9, 1E-10 },
-        input_scales{ 0.5, 0.75, 1.0, 1.25, 1.5 };
+    const std::vector<UTIL::Index> res_sizes{ 350, 500 }, warmup_sizes{ 0 };
+    const std::vector<T>           leak_rates{ 0.025, 0.05, 0.075, 0.1,  0.15,
+                                     0.25,  0.35, 0.55,  0.85, 0.95 },
+        sparsity_values{ 0.1, 0.2, 0.3, 0.4 },
+        spectral_radii{ 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 },
+        alpha_values{ 1E-2, 1E-5, 1E-7, 1E-10 }, input_scales{ 0.5 };
 
     const auto N_tests{ datafiles.size() * seeds.size() * res_sizes.size()
                         * warmup_sizes.size() * leak_rates.size()
@@ -427,7 +426,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     using T = double;
 
     const std::filesystem::path data_path{
-        "../data/train_test_src/22_measured.csv"
+        "../data/train_test_src/17_measured.csv"
     };
     const auto data_csv{ CSV::SimpleCSV(
         /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
@@ -435,10 +434,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
     using T = double;
-    const unsigned    seed{ 100 };
-    const UTIL::Index d{ 2 }, n_node{ 750 }, n_warmup{ 000 }, data_stride{ 2 };
-    const T           leak{ 0.05 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
-        alpha{ 1E-5 }, bias{ 1. }, input_scale{ 1.5 };
+    const unsigned    seed{ 1330 };
+    const UTIL::Index d{ 2 }, n_node{ 350 }, n_warmup{ 1250 }, data_stride{ 2 };
+    const T           leak{ 0.925 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
+        alpha{ 0.001 }, bias{ 1. }, input_scale{ 1.5 };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -468,7 +467,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     };
 
     const auto [train_pair, test_labels] = data_split<double>(
-        data_pool, 0.75, feature_shape, data_stride, UTIL::Standardizer<T>{} );
+        data_pool, 0.5, feature_shape, data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
