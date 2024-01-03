@@ -186,8 +186,14 @@ SimpleCSV<T>::parse() noexcept {
             // Read values in
             Index count{ 0 }; // Count to ensure no. cols is consistent
             for ( const auto & [i, value] : split_row ) {
-                m_data[static_cast<std::size_t>( i )].push_back(
-                    std::stod( std::string{ value.data(), value.size() } ) );
+                if constexpr ( std::same_as<T, double> ) {
+                    m_data[static_cast<std::size_t>( i )].push_back( std::stod(
+                        std::string{ value.data(), value.size() } ) );
+                }
+                else if constexpr ( std::same_as<T, float> ) {
+                    m_data[static_cast<std::size_t>( i )].push_back( std::stof(
+                        std::string{ value.data(), value.size() } ) );
+                }
                 count++;
             }
 
