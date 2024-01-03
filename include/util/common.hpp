@@ -212,10 +212,41 @@ class L2Solver
             m_ridge * Mat<T>::Identity( X_2.rows(), X_2.cols() )
         };
         const auto sum{ X_2 + regularization_matrix };
-        const auto factor{ sum.fullPivLu().inverse() };
-        return y.transpose() * ( factor * X ).transpose();
+        const auto y_X{ y.transpose() * X.transpose() };
+        const auto inv{ sum.partialPivLu().inverse() };
+        std::cout << std::format( "sum: {}\n",
+                                  mat_shape_str<T, -1, -1>( sum ) );
+        std::cout << std::format( "y_X: {}\n",
+                                  mat_shape_str<T, -1, -1>( y_X ) );
+        // const Mat<T> result{ y_X * inv };
+        // const Mat<T> result{
+        //    sum.template partialPivLu().solve( X_y ).transpose()
+        //};
+        // std::cout << std::format( "result: {}\n",
+        //                          mat_shape_str<T, -1, -1>( result ) );
+
+        return y_X * inv;
     }
 };
+
+// template <Weight T>
+// class AltL2Solver
+//{
+//     private:
+//     T m_ridge;
+//
+//     public:
+//     AltL2Solver( const T ridge ) : m_ridge( ridge ) {}
+//
+//     using value_type = T;
+//
+//     constexpr inline Mat<T> solve( const ConstRefMat<T> & X,
+//                                    const ConstRefMat<T> & y ) const
+//                                    noexcept
+//                                    {
+//
+//     }
+// };
 
 static_assert( Solver<L2Solver<double>> );
 
@@ -256,6 +287,9 @@ class Normalizer
     pre_process( const ConstRefMat<T> & data,
                  const bool             time_col_present ) const noexcept {
         Mat<T> normalised( data.rows(), data.cols() );
+        if ( time_col_present ) {
+            normalised.col( 0 ) = data.col( 0 );
+        }
         for ( Index i{ time_col_present ? 1 : 0 }; i < data.cols(); ++i ) {
             const T min_coeff{ data.col( i ).minCoeff() },
                 max_coeff{ data.col( i ).maxCoeff() };
@@ -304,6 +338,9 @@ class Standardizer
         const auto stds = std( data, means );
 
         Mat<T> standardised( data.rows(), data.cols() );
+        if ( time_col_present ) {
+            standardised.col( 0 ) = data.col( 0 );
+        }
         for ( Index i{ time_col_present ? 1 : 0 }; i < data.cols(); ++i ) {
             standardised.col( i ) =
                 ( data.col( i ).array() - means[i] ) / stds[i];
@@ -314,12 +351,24 @@ class Standardizer
 };
 static_assert( DataProcessor<Standardizer<double>> );
 
+template <typename C>
+concept Constructor =
+    std::constructible_from<C, Index, Index> && Weight<typename C::value_type>
+    && requires( const C                                     constructor,
+                 const ConstRefMat<typename C::value_type> & u,
+                 const ConstRefMat<typename C::value_type> & R ) {
+           {
+               C::construct( u, R )
+           } -> std::convertible_to<Mat<typename C::value_type>>;
+       };
+
 template <Weight T>
 constexpr inline RowVec<T>
 RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y ) {
     if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
         std::cerr << std::format(
-            "RMSE: samples & labels must have matching dimensions (X: "
+            "RMSE: samples & labels must have matching dimensions "
+            "(X: "
             "{}, y: {})\n",
             mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
         exit( EXIT_FAILURE );
@@ -339,7 +388,8 @@ windowed_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y,
                const Index window_length = 1 ) {
     if ( X.rows() != y.rows() || X.cols() != y.cols() ) {
         std::cerr << std::format(
-            "windowed_RMSE: samples & labels must have matching dimensions (X: "
+            "windowed_RMSE: samples & labels must have matching "
+            "dimensions (X: "
             "{}, y: {})\n",
             mat_shape_str<T, -1, -1>( X ), mat_shape_str<T, -1, -1>( y ) );
         exit( EXIT_FAILURE );
@@ -347,7 +397,8 @@ windowed_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y,
 
     if ( window_length > X.rows() || window_length < 0 ) {
         std::cerr << std::format(
-            "windowed_RMSE: window_length ({}) must be <= data length ({}) & > "
+            "windowed_RMSE: window_length ({}) must be <= data "
+            "length ({}) & > "
             "0.\n",
             window_length, X.rows() );
 
@@ -393,7 +444,8 @@ windowed_RMSE( const ConstRefMat<T> & X, const ConstRefMat<T> & y,
 inline std::map<std::string, Index>
 parse_filename( const std::string_view filename ) {
     const std::string re{
-        "([\\d]+)_([01])_([-\\d]+)_([\\d+]+)_([01])_([\\d]+)_([\\d]+)\\.csv"
+        "([\\d]+)_([01])_([-\\d]+)_([\\d+]+)_([01])_([\\d]+)_([\\d]+"
+        ")\\.csv"
     };
     const std::regex                                     pattern{ re };
     std::match_results<std::string_view::const_iterator> match;
@@ -457,7 +509,8 @@ get_filename( const std::map<std::string, Index> & file_params ) {
 }
 
 // std::filesystem::path
-// get_metadata_filename( const std::map<char, Index> & hyperparams ) {}
+// get_metadata_filename( const std::map<char, Index> & hyperparams )
+// {}
 
 template <Weight T>
 constexpr inline DataPair<T>
@@ -564,7 +617,8 @@ data_split( const ConstRefMat<T> & data, const double train_test_ratio,
                           stride, processor, time_col_present );
 }
 
-// Variant of train_split, test_split & data_split with no warmup offset
+// Variant of train_split, test_split & data_split with no warmup
+// offset
 
 template <Weight T>
 constexpr inline DataPair<T>
@@ -657,5 +711,4 @@ data_split( const ConstRefMat<T> & data, const double train_test_ratio,
                           data.bottomRows( test_size ), shape, stride,
                           processor, time_col_present );
 }
-
 } // namespace UTIL
