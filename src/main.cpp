@@ -107,7 +107,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     Eigen::setNbThreads( 8 );
 // #define ESN_OPT
 #ifdef ESN_OPT
-    using T = double;
+    using T = float;
     using clock = std::chrono::steady_clock;
 
     // Constant hyperparams
@@ -148,7 +148,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::chrono::duration<T> total_time{ 0 }, total_test_time{ 0 };
 
             // Load data csv
-            const auto data_csv{ CSV::SimpleCSV(
+            const auto data_csv{ CSV::SimpleCSV<T>(
                 /*filename*/ path, /*col_titles*/ true, /*skip_header*/ 0,
                 /*delim*/ ",", /*max_line_size*/ 256 )
 
@@ -269,24 +269,21 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                               std::format(
                                                   "{}",
                                                   std::chrono::duration_cast<
-                                                      std::chrono::duration<
-                                                          double>>(
+                                                      std::chrono::duration<T>>(
                                                       init_end
                                                       - init_start ) ) },
                                             { "train_time",
                                               std::format(
                                                   "{}",
                                                   std::chrono::duration_cast<
-                                                      std::chrono::duration<
-                                                          double>>(
+                                                      std::chrono::duration<T>>(
                                                       train_end
                                                       - train_start ) ) },
                                             { "forecast_time",
                                               std::format(
                                                   "{}",
                                                   std::chrono::duration_cast<
-                                                      std::chrono::duration<
-                                                          double>>(
+                                                      std::chrono::duration<T>>(
                                                       forecast_end
                                                       - forecast_start ) ) }
                                         };
@@ -423,21 +420,22 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "window_RMSE_11:\n" << window_RMSE_11 << std::endl;
 #endif
 #ifdef ESN_TEST
-    using T = double;
+    using T = float;
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
     };
-    const auto data_csv{ CSV::SimpleCSV(
+    const auto data_csv{ CSV::SimpleCSV<T>(
         /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
     using T = double;
     const unsigned    seed{ 1330 };
-    const UTIL::Index d{ 2 }, n_node{ 350 }, n_warmup{ 1250 }, data_stride{ 2 };
-    const T           leak{ 0.925 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
-        alpha{ 0.001 }, bias{ 1. }, input_scale{ 1.5 };
+    const UTIL::Index d{ 2 }, n_node{ 1500 }, n_warmup{ 1000 },
+        data_stride{ 2 };
+    const T leak{ 0.95 }, sparsity{ 0.001 }, spectral_radius{ 1 },
+        alpha{ 1E-3 }, bias{ 1. }, input_scale{ 1.12 };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -446,13 +444,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto w_in_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( 0, 1. ) };
+            static auto dist{ std::uniform_real_distribution<T>( -0.5, 0.5 ) };
             return dist( gen );
         };
     const auto adjacency_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
+            static auto dist{ std::uniform_real_distribution<T>( 0., 1. ) };
             return dist( gen );
         };
 
@@ -466,13 +464,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
 
-    const auto [train_pair, test_labels] = data_split<double>(
+    const auto [train_pair, test_labels] = data_split<T>(
         data_pool, 0.5, feature_shape, data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
-                              shape_str<double, -1, -1>( train_samples ),
-                              shape_str<double, -1, -1>( train_labels ) );
+                              shape_str<T, -1, -1>( train_samples ),
+                              shape_str<T, -1, -1>( train_labels ) );
 
     const auto init_start{ std::chrono::steady_clock::now() };
     ESN::ESN<
@@ -486,8 +484,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /* generator type */ std::mt19937,
         /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
-                     bias, input_scale, activation_func, solver, w_in_func,
-                     adjacency_func );
+                     bias, input_scale, { 1 }, activation_func, solver,
+                     w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
 
@@ -499,8 +497,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const auto forecast_start{ std::chrono::steady_clock::now() };
 
-    const auto forecast{ split_dense.forecast( test_labels.rightCols( d ),
-                                               { 0 } ) };
+    const auto forecast{ split_dense.forecast( test_labels.rightCols( d ) ) };
 
     const auto forecast_finish{ std::chrono::steady_clock::now() };
     const auto rmse{ UTIL::RMSE<T>( forecast,
@@ -543,7 +540,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         test_labels.rightCols( d ).bottomRows( test_labels.rows() - n_warmup );
 
     // Write to a csv
-    const auto write_success{ CSV::SimpleCSV::write<T>(
+    const auto write_success{ CSV::SimpleCSV<T>::template write<T>(
         write_path, forecast_data, col_titles ) };
 
     if ( !write_success ) {
@@ -553,7 +550,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     }
 #endif
 #ifdef ESN_DOUBLESCROLL
-    using T = double;
+    using T = float;
 
     // Doublescroll
     const std::filesystem::path doublescroll_train_path{
@@ -563,13 +560,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/test_data/doublescroll.csv"
     };
     // clang-format off
-    const auto doublescroll_train_csv{ CSV::SimpleCSV(
+    const auto doublescroll_train_csv{ CSV::SimpleCSV<T>(
         /*filename=*/doublescroll_train_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
         /*delim*/ ",",
         /*max_line_size=*/256 ) };
-    const auto doublescroll_test_csv{ CSV::SimpleCSV(
+    const auto doublescroll_test_csv{ CSV::SimpleCSV<T>(
         /*filename=*/doublescroll_test_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
@@ -577,17 +574,17 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*max_line_size=*/256 ) };
     // clang-format on
 
-    const auto doublescroll_train_data{ doublescroll_train_csv.atv<double>() };
-    const auto doublescroll_test_data{ doublescroll_test_csv.atv<double>() };
+    const auto doublescroll_train_data{ doublescroll_train_csv.atv() };
+    const auto doublescroll_test_data{ doublescroll_test_csv.atv() };
 
     const UTIL::FeatureVecShape doublescroll_feature_shape{ { 1, 0 },
                                                             { 2, 0 },
                                                             { 3, 0 } };
 
     const unsigned    seed{ 0 };
-    const UTIL::Index d{ 3 }, n_node{ 350 }, n_warmup{ 0 }, data_stride{ 1 };
-    const T           leak{ 0.7 }, sparsity{ 0.1 }, spectral_radius{ 0.3 },
-        alpha{ 7.5E-6 }, bias{ 1. }, input_scale{ 2.5 };
+    const UTIL::Index d{ 3 }, n_node{ 300 }, n_warmup{ 0 }, data_stride{ 1 };
+    const T leak{ 0.9 }, sparsity{ 0.1 }, spectral_radius{ 0.4 }, alpha{ 3E-4 },
+        bias{ 1. }, input_scale{ 1. };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -623,15 +620,15 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
              /* generator type */ std::mt19937,
              /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
-                     bias, input_scale, activation_func, solver, w_in_func,
-                     adjacency_func );
+                     bias, input_scale, { 1 }, activation_func, solver,
+                     w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
 
     const auto [doublescroll_train_pair, doublescroll_test_labels] =
-        data_split<double>( doublescroll_train_data, doublescroll_test_data,
-                            doublescroll_feature_shape, data_stride,
-                            UTIL::Standardizer<T>{} );
+        data_split<T>( doublescroll_train_data, doublescroll_test_data,
+                       doublescroll_feature_shape, data_stride,
+                       UTIL::Standardizer<T>{} );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
 
@@ -644,7 +641,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto forecast_start{ std::chrono::steady_clock::now() };
 
     const auto forecast{ split_dense.forecast(
-        doublescroll_test_labels.rightCols( d ), { 0, 2 } ) };
+        doublescroll_test_labels.rightCols( d ) ) };
 
     const auto forecast_finish{ std::chrono::steady_clock::now() };
 
@@ -681,7 +678,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             doublescroll_test_labels.rows() - n_warmup );
 
     // Write to a csv
-    const auto write_success{ CSV::SimpleCSV::write<T>(
+    const auto write_success{ CSV::SimpleCSV<T>::template write<T>(
         write_path, forecast_data, col_titles ) };
 
     if ( !write_success ) {
@@ -691,16 +688,18 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     }
 #endif
 #ifdef FORECAST
+    using T = float;
+
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
     };
-    const auto data_csv{ CSV::SimpleCSV(
+    const auto data_csv{ CSV::SimpleCSV<T>(
         /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
     const bool        use_const{ true };
-    const double      alpha{ 1E-3 }, constant{ 1 };
+    const T           alpha{ 1E-3 }, constant{ 1 };
     const UTIL::Index d{ 2 }, k{ 3 }, s{ 2 }, p{ 3 }, data_stride{ 2 };
     std::cout << std::format( "data_stride: {}\n", data_stride );
     std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
@@ -711,29 +710,29 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
 
-    // const auto [train_samples, train_labels] = train_split<double>(
+    // const auto [train_samples, train_labels] = train_split<T>(
     //     train_data_pool, feature_shape, k, s, data_stride );
-    // const auto [test_warmup, test_labels] = test_split<double>(
+    // const auto [test_warmup, test_labels] = test_split<T>(
     //     test_data_pool, feature_shape, k, s, data_stride );
 
-    const auto [train_pair, test_pair] = data_split<double>(
+    const auto [train_pair, test_pair] = data_split<T>(
         data_pool, 0.75, feature_shape, NVAR::warmup_offset( k, s ),
-        data_stride, UTIL::Standardizer<double>{} );
+        data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
     const auto [test_warmup, test_labels] = test_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
-                              shape_str<double, -1, -1>( train_samples ),
-                              shape_str<double, -1, -1>( train_labels ) );
+                              shape_str<T, -1, -1>( train_samples ),
+                              shape_str<T, -1, -1>( train_labels ) );
     std::cout << std::format( "test_warmup: {}, test_labels: {}\n",
-                              shape_str<double, -1, -1>( test_warmup ),
-                              shape_str<double, -1, -1>( test_labels ) );
+                              shape_str<T, -1, -1>( test_warmup ),
+                              shape_str<T, -1, -1>( test_labels ) );
 
     std::cout << "Training NVAR.\n";
-    NVAR::NVAR<double, NVAR::nonlinear_t::poly> test(
+    NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        use_const, constant, UTIL::L2Solver<double>( alpha ), true,
-        { "I", "V" }, "../data/forecast_data/tmp.csv" );
+        use_const, constant, UTIL::L2Solver<T>( alpha ), true, { "I", "V" },
+        "../data/forecast_data/tmp.csv" );
 
 
     std::cout << "Forecasting.\n";
@@ -753,13 +752,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "{}, test_labels.cols(): {}\n",
         forecast_col_titles.size(), test_labels.cols(), forecast.cols(),
         test_labels.cols() );
-    UTIL::Mat<double> forecast_data( forecast.rows(),
-                                     forecast.cols() + test_labels.cols() );
+    UTIL::Mat<T> forecast_data( forecast.rows(),
+                                forecast.cols() + test_labels.cols() );
 
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
 
-    const auto write_success{ CSV::SimpleCSV::write<double>(
+    const auto write_success{ CSV::SimpleCSV<T>::template write<T>(
         forecast_path, forecast_data, forecast_col_titles ) };
 
     if ( !write_success ) {
@@ -768,10 +767,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
 #endif
 #ifdef CUSTOM_FEATURES
+    using T = float;
+
     const std::filesystem::path data_path{
         "../data/train_test_src/22_measured.csv"
     };
-    const auto data_csv{ CSV::SimpleCSV(
+    const auto data_csv{ CSV::SimpleCSV<T>(
         /*filename*/ data_path, /*col_titles*/ true, /*skip_header*/ 0,
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
@@ -829,7 +830,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     forecast_data << test_labels.leftCols( 1 ), forecast,
         test_labels.rightCols( d );
 
-    const auto write_success{ CSV::SimpleCSV::write<double>(
+    const auto write_success{ CSV::SimpleCSV<T>::write<T>(
         forecast_path, forecast_data, forecast_col_titles ) };
 
     if ( !write_success ) {
@@ -838,6 +839,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
 #endif
 #ifdef DOUBLESCROLL
+    using T = float;
+
     std::cout << "Running doublescroll." << std::endl;
 
     // Doublescroll
@@ -848,13 +851,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/test_data/doublescroll.csv"
     };
     // clang-format off
-    const auto doublescroll_train_csv{ CSV::SimpleCSV(
+    const auto doublescroll_train_csv{ CSV::SimpleCSV<T>(
         /*filename=*/doublescroll_train_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
         /*delim*/ ",",
         /*max_line_size=*/256 ) };
-    const auto doublescroll_test_csv{ CSV::SimpleCSV(
+    const auto doublescroll_test_csv{ CSV::SimpleCSV<T>(
         /*filename=*/doublescroll_test_path,
         /*col_titles=*/true,
         /*skip_header=*/0,
@@ -862,8 +865,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*max_line_size=*/256 ) };
     // clang-format on
 
-    const auto doublescroll_train_data{ doublescroll_train_csv.atv<double>() };
-    const auto doublescroll_test_data{ doublescroll_test_csv.atv<double>() };
+    const auto doublescroll_train_data{ doublescroll_train_csv.atv() };
+    const auto doublescroll_test_data{ doublescroll_test_csv.atv() };
 
     const bool   use_const{ false };
     const Index  d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
@@ -899,7 +902,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     };
     const std::vector<std::string> col_titles{ "v1", "v2", "I" };
 
-    const auto write_success{ CSV::SimpleCSV::write<double>(
+    const auto write_success{ CSV::SimpleCSV<T>::write<T>(
         doublescroll_forecast_path, doublescroll_forecast, col_titles ) };
 
     if ( !write_success ) {
@@ -907,6 +910,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     }
 #endif
 #ifdef HH_MODEL
+    using T = float;
+
     const auto base_path{ std::filesystem::absolute(
         std::filesystem::current_path() / ".." ) };
 
@@ -947,7 +952,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             // Load data
             std::cout << "Loading csv data." << std::endl;
             // clang-format off
-            const auto csv{ CSV::SimpleCSV(
+            const auto csv{ CSV::SimpleCSV<T>(
                 /*filename=*/write_path,
                 /*col_titles=*/true,
                 /*skip_header=*/0,
@@ -956,7 +961,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             };
             // clang-format on
             std::cout << "Loading csv into matrix." << std::endl;
-            const Mat<double> full_data{ csv.atv<double>( 0, 0 ) };
+            const Mat<double> full_data{ csv.atv( 0, 0 ) };
 
             // Split data
             std::cout << "Splitting data..." << std::endl;
@@ -1037,7 +1042,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             results << test_labels, forecast;
 
-            const auto write_success{ CSV::SimpleCSV::write<double>(
+            const auto write_success{ CSV::SimpleCSV<T>::write<T>(
                 write_file, results, col_titles ) };
 
             if ( !write_success ) {

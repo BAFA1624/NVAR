@@ -23,6 +23,10 @@ template <typename T>
 concept Readable = std::floating_point<T> || std::integral<T>
                    || std::convertible_to<T, std::string>;
 
+template <typename T>
+concept Valid_t = std::same_as<T, float> || std::same_as<T, double>;
+
+template <Valid_t T>
 class SimpleCSV
 {
     private:
@@ -30,10 +34,10 @@ class SimpleCSV
     bool m_successful;
 
     // Data
-    std::map<std::string, Index>     m_title_map;
-    std::vector<std::vector<double>> m_data;
-    Index                            m_rows;
-    Index                            m_cols;
+    std::map<std::string, Index> m_title_map;
+    std::vector<std::vector<T>>  m_data;
+    Index                        m_rows;
+    Index                        m_cols;
 
     // Parsing information
     std::filesystem::directory_entry m_file;
@@ -71,22 +75,22 @@ class SimpleCSV
         return m_successful;
     }
 
-    template <typename T = double>
     [[nodiscard]] constexpr std::vector<T> col( const Index i ) const noexcept;
-    template <typename T = double>
-    [[nodiscard]] constexpr Mat<T, -1, 1> colv( const Index i ) const noexcept;
-    template <typename T = double, Index R = -1, Index C = -1>
+    [[nodiscard]] constexpr Mat<T, -1, 1>  colv( const Index i ) const noexcept;
+    template <Index R = -1, Index C = -1>
     [[nodiscard]] constexpr Mat<T, R, C>
     atv( const Index row_offset = 0,
          const Index col_offset = 0 ) const noexcept;
 
-    template <typename T = double, Index R = -1, Index C = -1>
+    template <typename T2 = T, Index R = -1, Index C = -1>
+        requires std::convertible_to<T2, T>
     [[nodiscard]] static inline bool
-    write( const std::filesystem::path file, const RefMat<T, R, C> m,
+    write( const std::filesystem::path file, const RefMat<T2, R, C> m,
            const std::vector<std::string> & titles = {} ) noexcept;
-    template <typename T>
+    template <typename T2 = T>
+        requires std::convertible_to<T2, T>
     [[nodiscard]] static inline bool
-    write( const std::filesystem::path file, const RefMat<T, -1, -1> m,
+    write( const std::filesystem::path file, const RefMat<T2, -1, -1> m,
            const std::vector<std::string> & titles = {} ) noexcept;
 
     [[nodiscard]] constexpr auto & rows() const noexcept { return m_rows; };
@@ -103,8 +107,9 @@ class SimpleCSV
     }
 };
 
+template <Valid_t T>
 inline void
-SimpleCSV::parse() noexcept {
+SimpleCSV<T>::parse() noexcept {
     std::ifstream file{ m_file.path(),
                         std::ifstream::ate | std::ifstream::binary };
 
@@ -169,7 +174,7 @@ SimpleCSV::parse() noexcept {
 
         // Set size of m_data
         m_cols = static_cast<Index>( m_title_map.size() );
-        m_data = std::vector<std::vector<double>>( m_title_map.size() );
+        m_data = std::vector<std::vector<T>>( m_title_map.size() );
 
         // Parse file line-by-line
         Index row_count{ 0 };
@@ -204,9 +209,9 @@ SimpleCSV::parse() noexcept {
     }
 }
 
-template <typename T>
+template <Valid_t T>
 constexpr std::vector<T>
-SimpleCSV::col( const Index i ) const noexcept {
+SimpleCSV<T>::col( const Index i ) const noexcept {
     if ( m_successful ) {
         return m_data[static_cast<std::size_t>( i )];
     }
@@ -214,9 +219,9 @@ SimpleCSV::col( const Index i ) const noexcept {
         return std::vector<T>{};
     }
 }
-template <typename T>
+template <Valid_t T>
 constexpr Mat<T, -1, 1>
-SimpleCSV::colv( const Index i ) const noexcept {
+SimpleCSV<T>::colv( const Index i ) const noexcept {
     if ( m_successful ) {
         Mat<T, -1, 1> result( m_data[static_cast<std::size_t>( i )].size() );
         for ( const auto & [j, x] : m_data[i] | std::views::enumerate ) {
@@ -229,10 +234,11 @@ SimpleCSV::colv( const Index i ) const noexcept {
     }
 }
 
-template <typename T, Index R, Index C>
+template <Valid_t T>
+template <Index R, Index C>
 [[nodiscard]] constexpr Mat<T, R, C>
-SimpleCSV::atv( const Index row_offset,
-                const Index col_offset ) const noexcept {
+SimpleCSV<T>::atv( const Index row_offset,
+                   const Index col_offset ) const noexcept {
     if ( m_successful ) {
         if constexpr ( R > 0 && C > 0 ) {
             Mat<T, R, C> result;
@@ -262,10 +268,12 @@ SimpleCSV::atv( const Index row_offset,
     }
 }
 
-template <typename T, Index R, Index C>
+template <Valid_t T>
+template <typename T2, Index R, Index C>
+    requires std::convertible_to<T2, T>
 inline bool
-SimpleCSV::write( const std::filesystem::path file, const RefMat<T, R, C> m,
-                  const std::vector<std::string> & titles ) noexcept {
+SimpleCSV<T>::write( const std::filesystem::path file, const RefMat<T2, R, C> m,
+                     const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {
         if ( !titles.empty() && static_cast<Index>( titles.size() ) == R ) {
@@ -295,10 +303,13 @@ SimpleCSV::write( const std::filesystem::path file, const RefMat<T, R, C> m,
     return false;
 }
 
-template <typename T>
+template <Valid_t T>
+template <typename T2>
+    requires std::convertible_to<T2, T>
 inline bool
-SimpleCSV::write( const std::filesystem::path file, const RefMat<T, -1, -1> m,
-                  const std::vector<std::string> & titles ) noexcept {
+SimpleCSV<T>::write( const std::filesystem::path      file,
+                     const RefMat<T2, -1, -1>         m,
+                     const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {
         if ( !titles.empty() ) {
