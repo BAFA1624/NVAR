@@ -66,6 +66,9 @@ class ESN
     // Output weights
     UTIL::Mat<T> m_w_out;
 
+    // Storage for which columns in the labels should be the training targets
+    std::vector<UTIL::Index> m_train_targets;
+
     // Common random number generator for all random processes
     Generator m_gen;
 
@@ -105,6 +108,8 @@ class ESN
             const UTIL::ConstRefVec<T> & Wi_Xi ) const noexcept; // Implemented
     [[nodiscard]] constexpr inline UTIL::Mat<T>
     construct_reservoir_states( const UTIL::ConstRefMat<T> & X ) const noexcept;
+    [[nodiscard]] constexpr inline UTIL::ConstRefMat<T>
+    transform_labels( const UTIL::ConstRefMat<T> & y ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Vec<T>
     construct_feature( [[maybe_unused]] const UTIL::ConstRefVec<T> & Xi,
                        const UTIL::ConstRefVec<T> &                  Ri )
@@ -120,6 +125,7 @@ class ESN
         const T sparsity, const T spectral_radius, const Seed_t seed = 0,
         const UTIL::Index n_warmup = 100, const T bias = T{ 1. },
         const T                             input_scale = T{ 1. },
+        const std::vector<UTIL::Index> &    train_targets = {},
         const std::function<T( const T )> & activation =
             []( const T x ) { return std::tanh( x ); },
         const S solver = L2Solver<T>( T{ 1E-3 } ),
@@ -177,8 +183,7 @@ class ESN
     forecast( const UTIL::Index            n,
               const UTIL::ConstRefMat<T> & warmup = {} ) noexcept;
     [[nodiscard]] constexpr inline UTIL::Mat<T>
-    forecast( const UTIL::ConstRefMat<T> &     labels,
-              const std::vector<UTIL::Index> & pass_through = {} ) noexcept;
+    forecast( const UTIL::ConstRefMat<T> & labels ) noexcept;
 };
 
 template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
@@ -190,6 +195,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     ESN( const UTIL::Index d, const UTIL::Index n_node, const T leak,
          const T sparsity, const T spectral_radius, const Seed_t seed,
          const UTIL::Index n_warmup, const T bias, const T input_scale,
+         const std::vector<UTIL::Index> &    train_targets,
          const std::function<T( const T )> & activation, S solver,
          const std::function<T( const T, Generator & )> & W_in_func,
          const std::function<T( const T, Generator & )> & adjacency_func ) :
@@ -204,6 +210,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     m_input_scale( input_scale ),
     m_train_complete( false ),
     m_reservoir( UTIL::Vec<T>( n_node ) ),
+    m_train_targets( train_targets ),
     m_gen( seed ),
     m_solver( solver ),
     m_activation( activation ),
@@ -238,14 +245,16 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
                    "construct different feature vectors.\n" );
 
     // Initialise input weights
+    std::cout << "Input weights..." << std::endl;
     if constexpr ( !m_dense_input ) {
-        m_w_in = m_input_scale * init_W_in();
+        m_w_in = init_W_in();
     }
     else {
-        m_w_in_dense = m_input_scale * init_W_in_dense();
+        m_w_in_dense = init_W_in_dense();
     }
 
     // Initialise adjacency matrix
+    std::cout << "Adjacency..." << std::endl;
     if constexpr ( !m_dense_adjacency ) {
         m_adjacency = init_adjacency();
     }
@@ -261,10 +270,11 @@ template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
 constexpr inline UTIL::SMat<T, _Options, _StorageIndex>
 ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::init_W_in() noexcept {
-    constexpr bool split{ static_cast<bool>( W_in_init & input_t::split ) };
+    constexpr auto split{ static_cast<bool>( W_in_init & input_t::split ) };
     // Generate input weights w/ extra column for bias
-    return generate_sparse<T, split, Generator>( m_n_node, m_d + 1, m_sparsity,
-                                                 m_gen, m_W_in_func );
+    return generate_sparse<T, split, Generator>(
+        m_n_node, m_d + ( m_feature_bias ? 1 : 0 ), m_sparsity, m_gen,
+        m_W_in_func );
 }
 
 template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
@@ -276,14 +286,18 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::init_W_in_dense() noexcept {
     constexpr bool split{ static_cast<bool>( W_in_init & input_t::split ) };
 
-    UTIL::Mat<T> result( m_n_node, m_d + 1 );
+    constexpr UTIL::Index bias_sz{ m_feature_bias ? 1 : 0 };
+
+    UTIL::Mat<T> result( m_n_node, m_d + bias_sz );
 
     const auto f = [this]( const T x ) { return m_W_in_func( x, m_gen ); };
     if constexpr ( split ) {
-        std::vector<UTIL::Index> sizes( static_cast<std::size_t>( m_d + 1 ),
-                                        m_n_node / ( m_d + 1 ) );
+        std::vector<UTIL::Index> sizes(
+            static_cast<std::size_t>( m_d + bias_sz ),
+            m_n_node / ( m_d + bias_sz ) );
         for ( std::size_t i{ 0 };
-              i < static_cast<std::size_t>( m_n_node % ( m_d + 1 ) ); ++i ) {
+              i < static_cast<std::size_t>( m_n_node % ( m_d + bias_sz ) );
+              ++i ) {
             sizes[i]++;
         }
 
@@ -301,9 +315,6 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     else {
         result = result.unaryExpr( f );
     }
-
-    // Set bias values
-    result.col( m_d ) = UTIL::Vec<T>::Ones( m_n_node );
 
     return result;
 }
@@ -365,14 +376,17 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     const noexcept {
     if ( xi.rows() != m_d ) {
         std::cerr << std::format(
-            "Rows of input ot ESN::wi_xi ({}) must match number of dimensions "
+            "Rows of input to ESN::wi_xi ({}) must match number of dimensions "
             "({}).\n",
             xi.rows(), m_d );
         exit( EXIT_FAILURE );
     }
 
-    UTIL::Mat<T> input{ UTIL::Mat<T>::Constant( m_d + 1, xi.cols(), m_bias ) };
-    input.topRows( m_d ) = xi;
+    constexpr UTIL::Index bias_sz{ m_feature_bias ? 1 : 0 };
+
+    UTIL::Mat<T> input{ UTIL::Mat<T>::Constant( m_d + bias_sz, xi.cols(),
+                                                m_bias ) };
+    input.bottomRows( m_d ) = xi;
 
     if constexpr ( m_dense_input ) {
         return m_w_in_dense * input;
@@ -427,6 +441,10 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     // Calculate each data input multiplied with input weights
     UTIL::Mat<T> W_X = wi_xi( X );
 
+    std::cout << std::format( "W_X: {}\n",
+                              UTIL::mat_shape_str<T, -1, -1>( W_X ) );
+    std::cout << std::format( "X: {}\n", UTIL::mat_shape_str<T, -1, -1>( X ) );
+
     // Calculate each reservoir state
     for ( UTIL::Index col{ 1 }; col < X.cols() + 1; ++col ) {
         reservoir_states.col( col ) =
@@ -441,13 +459,42 @@ template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
           feature_t Feature_init, UTIL::Solver S,
           UTIL::RandomNumberEngine Generator, bool target_difference,
           Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
+constexpr inline UTIL::ConstRefMat<T>
+ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
+    _Options, _StorageIndex>::transform_labels( const UTIL::ConstRefMat<T> & y )
+    const noexcept {
+    if ( m_train_targets.size() != 0 ) {
+        // Check pass-through indices are valid
+        if ( std::ranges::max( m_train_targets ) >= m_d
+             || std::ranges::min( m_train_targets ) < 0 ) {
+            std::cerr << std::format(
+                "Pass-through indices must meet the requirement: {} > {} && 0 "
+                "<= "
+                "{}.\n",
+                m_d, std::ranges::max( m_train_targets ),
+                std::ranges::min( m_train_targets ) );
+            exit( EXIT_FAILURE );
+        }
+    }
+    else {
+        return y;
+    }
+
+    return y( Eigen::placeholders::all, m_train_targets );
+}
+
+template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
+          feature_t Feature_init, UTIL::Solver S,
+          UTIL::RandomNumberEngine Generator, bool target_difference,
+          Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
 constexpr inline UTIL::Vec<T>
 ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::
     construct_feature( [[maybe_unused]] const UTIL::ConstRefVec<T> & Xi,
                        const UTIL::ConstRefVec<T> & Ri ) const noexcept {
     UTIL::Vec<T> feature( feature_size() );
-    UTIL::Index  offset{ 0 };
+
+    UTIL::Index offset{ 0 };
 
     // If necessary, add bias to feature vector
     if constexpr ( m_feature_bias ) {
@@ -478,11 +525,13 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
                                             const UTIL::ConstRefMat<T> & R )
     const noexcept {
     UTIL::Mat<T> features( feature_size(), X.cols() );
-
+    std::cout << std::format( "Feature: {}\n",
+                              UTIL::mat_shape_str<T, -1, -1>( features ) );
     UTIL::Index offset{ 0 };
 
     // If necessary, add bias to feature matrix
     if constexpr ( m_feature_bias ) {
+        std::cout << "Adding bias at 0th index." << std::endl;
         features( 0, Eigen::placeholders::all ) =
             UTIL::RowVec<T>::Ones( features.cols() );
         offset++;
@@ -490,11 +539,17 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     // If necessary, add linear component to feature matrix
     if constexpr ( m_feature_linear ) {
+        std::cout << "Adding linear features from " << offset << " - "
+                  << offset + m_d - 1 << std::endl;
+
         features( Eigen::seq( offset, offset + m_d - 1 ),
                   Eigen::placeholders::all )
             << UTIL::Mat<T>{ X };
         offset += m_d;
     }
+
+    std::cout << "Adding reservoir states from " << offset << " - "
+              << feature_size() - 1 << std::endl;
 
     // Add reservoir states to feature matrix
     features( Eigen::seq( offset, Eigen::placeholders::last ),
@@ -527,15 +582,20 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         exit( EXIT_FAILURE );
     }
 
+    // Apply input scaling
+    const auto scaled_X{ m_input_scale * X };
+
     // Calculate reservoir states
-    const auto reservoir_states{ construct_reservoir_states( X.transpose() ) };
+    const auto reservoir_states{ construct_reservoir_states(
+        scaled_X.transpose() ) };
 
     // Construct feature vectors
-    const auto feature_vectors{ construct_all_features( X.transpose(),
+    const auto feature_vectors{ construct_all_features( scaled_X.transpose(),
                                                         reservoir_states ) };
 
     // Store final linear input Xi
-    m_xi = X( Eigen::placeholders::last, Eigen::placeholders::all ).transpose();
+    m_xi = scaled_X( Eigen::placeholders::last, Eigen::placeholders::all )
+               .transpose();
 
     // Calculate wi_xi
     m_wi_xi = wi_xi( m_xi );
@@ -545,14 +605,16 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         reservoir_states( Eigen::placeholders::all, Eigen::placeholders::last );
 
     if constexpr ( target_difference ) {
+        const auto targets{ transform_labels( y - scaled_X ) };
         m_w_out = m_solver.solve(
             feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup ),
-            ( y - X ).bottomRows( y.rows() - m_n_warmup ) );
+            targets.bottomRows( y.rows() - m_n_warmup ) );
     }
     else {
+        const auto targets{ transform_labels( y ) };
         m_w_out = m_solver.solve(
             feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup ),
-            y.bottomRows( y.rows() - m_n_warmup ) );
+            targets.bottomRows( y.rows() - m_n_warmup ) );
     }
 
     m_train_complete = true;
@@ -565,9 +627,8 @@ template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
           Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
 constexpr inline UTIL::Mat<T>
 ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
-    _Options, _StorageIndex>::forecast( const UTIL::ConstRefMat<T> & labels,
-                                        const std::vector<UTIL::Index> &
-                                            pass_through ) noexcept {
+    _Options, _StorageIndex>::forecast( const UTIL::ConstRefMat<T> &
+                                            labels ) noexcept {
     // Check training has been completed first
     if ( !m_train_complete ) {
         std::cerr << std::format(
@@ -582,20 +643,6 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
             "Label dimensionality ({}) must match training data ({}).\n",
             labels.cols(), m_d );
         exit( EXIT_FAILURE );
-    }
-
-    if ( pass_through.size() != 0 ) {
-        // Check pass-through indices are valid
-        if ( std::ranges::max( pass_through ) >= labels.cols()
-             || std::ranges::min( pass_through ) < 0 ) {
-            std::cerr << std::format(
-                "Pass-through indices must meet the requirement: {} > {} && 0 "
-                "<= "
-                "{}.\n",
-                labels.cols(), std::ranges::max( pass_through ),
-                std::ranges::min( pass_through ) );
-            exit( EXIT_FAILURE );
-        }
     }
 
     // Warmup stage
@@ -614,11 +661,13 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         const auto feature_vector{ construct_feature( m_xi, m_reservoir ) };
 
         // Predict next step
-        m_xi = m_w_out * feature_vector;
+        const auto prediction = m_w_out * feature_vector;
 
-        // Replace passthrough values
-        for ( const auto idx : pass_through ) {
-            m_xi( idx ) = labels( i, idx );
+        m_xi = labels.row( i ).transpose();
+
+        UTIL::Index j{ 0 };
+        for ( const auto idx : m_train_targets ) {
+            m_xi[idx] = prediction[j++];
         }
 
         // Write to result

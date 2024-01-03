@@ -400,7 +400,6 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 #ifdef DOUBLESCROLL_OPT
 #endif
 #ifdef RMSE_TEST
-    using T = double;
     const auto x{ UTIL::Mat<T>::Random( 100, 3 ) };
     const auto dx{ UTIL::Mat<T>::Random( 100, 3 ) };
     const auto dy{ UTIL::Mat<T>::Constant( 100, 3, 2. ) };
@@ -430,12 +429,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
-    using T = double;
-    const unsigned    seed{ 1330 };
-    const UTIL::Index d{ 2 }, n_node{ 1500 }, n_warmup{ 1000 },
+    const unsigned    seed{ 1352 };
+    const UTIL::Index d{ 2 }, n_node{ 2000 }, n_warmup{ 1000 },
         data_stride{ 2 };
-    const T leak{ 0.95 }, sparsity{ 0.001 }, spectral_radius{ 1 },
-        alpha{ 1E-3 }, bias{ 1. }, input_scale{ 1.12 };
+    const T leak{ 0.95 }, sparsity{ 0.001 }, spectral_radius{ 0.6 },
+        alpha{ 1E0 }, bias{ 1. }, input_scale{ 0.25 };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -450,7 +448,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto adjacency_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( 0., 1. ) };
+            static auto dist{ std::uniform_real_distribution<T>( -0.5, 0.5 ) };
             return dist( gen );
         };
 
@@ -465,41 +463,43 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     };
 
     const auto [train_pair, test_labels] = data_split<T>(
-        data_pool, 0.5, feature_shape, data_stride, UTIL::Standardizer<T>{} );
+        data_pool, 0.8, feature_shape, data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
                               shape_str<T, -1, -1>( train_samples ),
                               shape_str<T, -1, -1>( train_labels ) );
 
+    std::cout << "Init..." << std::endl;
     const auto init_start{ std::chrono::steady_clock::now() };
     ESN::ESN<
         /* value_t */ T,
-        /* input weight type */ ESN::input_t::sparse
-            | ESN::input_t::homogeneous,
+        /* input weight type */ ESN::input_t::dense | ESN::input_t::split,
         /* adjacency matrix type */ ESN::adjacency_t::sparse,
-        /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
-            | ESN::feature_t::reservoir,
+        /* feature_shape */ /*ESN::feature_t::bias |*/ /*ESN::feature_t::linear
+            |*/
+        ESN::feature_t::reservoir,
         /* Solver type */ UTIL::L2Solver<T>,
         /* generator type */ std::mt19937,
-        /* target_difference */ true>
+        /* target_difference */ false>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
                      bias, input_scale, { 1 }, activation_func, solver,
                      w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
 
+    std::cout << "Train..." << std::endl;
     const auto train_start{ std::chrono::steady_clock::now() };
     split_dense.train( train_samples.rightCols( d ),
                        train_labels.rightCols( d ) );
 
     const auto train_finish{ std::chrono::steady_clock::now() };
 
+    std::cout << "Forecast..." << std::endl;
     const auto forecast_start{ std::chrono::steady_clock::now() };
-
     const auto forecast{ split_dense.forecast( test_labels.rightCols( d ) ) };
-
     const auto forecast_finish{ std::chrono::steady_clock::now() };
+
     const auto rmse{ UTIL::RMSE<T>( forecast,
                                     test_labels.rightCols( d ).bottomRows(
                                         test_labels.rows() - n_warmup ) ) };
@@ -583,8 +583,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const unsigned    seed{ 0 };
     const UTIL::Index d{ 3 }, n_node{ 300 }, n_warmup{ 0 }, data_stride{ 1 };
-    const T leak{ 0.9 }, sparsity{ 0.1 }, spectral_radius{ 0.4 }, alpha{ 3E-4 },
-        bias{ 1. }, input_scale{ 1. };
+    const T           leak{ 0.95 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
+        alpha{ 3E-3 }, bias{ 1. }, input_scale{ 1. };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -620,7 +620,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
              /* generator type */ std::mt19937,
              /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
-                     bias, input_scale, { 1 }, activation_func, solver,
+                     bias, input_scale, { 1, 2 }, activation_func, solver,
                      w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
@@ -628,7 +628,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto [doublescroll_train_pair, doublescroll_test_labels] =
         data_split<T>( doublescroll_train_data, doublescroll_test_data,
                        doublescroll_feature_shape, data_stride,
-                       UTIL::Standardizer<T>{} );
+                       UTIL::NullProcessor<T>{} );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
 

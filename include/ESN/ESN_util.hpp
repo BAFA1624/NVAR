@@ -42,6 +42,62 @@ enum class feature_t : UTIL::Index {
 };
 ENUM_FLAGS( feature_t )
 
+
+template <UTIL::Weight T, feature_t Feature_init>
+class DefaultConstructor
+{
+    private:
+    UTIL::Index m_d;
+    UTIL::Index m_n_node;
+
+    constexpr static bool m_feature_bias =
+        static_cast<bool>( Feature_init & feature_t::bias );
+    constexpr static bool m_feature_linear =
+        static_cast<bool>( Feature_init & feature_t::linear );
+
+    [[nodiscard]] constexpr inline UTIL::Index feature_size() const noexcept {
+        return ( m_feature_bias ? 1 : 0 ) + ( m_feature_linear ? m_d : 0 )
+               + m_n_node;
+    }
+
+    public:
+    DefaultConstructor( const UTIL::Index d, const UTIL::Index n_nonlin ) :
+        m_d( d ), m_n_node( n_nonlin ) {}
+
+    constexpr inline auto
+    construct( [[maybe_unused]] const UTIL::ConstRefMat<T> & u,
+               const UTIL::ConstRefMat<T> &                  R ) {
+        UTIL::Mat<T> features( feature_size(), R.cols() );
+
+        UTIL::Index offset{ 0 };
+
+        // If necessary, add bias to feature matrix
+        if constexpr ( m_feature_bias ) {
+            features( 0, Eigen::placeholders::all ) =
+                UTIL::RowVec<T>::Ones( features.cols() );
+            offset++;
+        }
+
+        // If necessary, add linear component to feature matrix
+        if constexpr ( m_feature_linear ) {
+            features( Eigen::seq( offset, offset + m_d - 1 ),
+                      Eigen::placeholders::all )
+                << UTIL::Mat<T>{ u };
+            offset += m_d;
+        }
+
+        // Add reservoir states to feature matrix
+        features( Eigen::seq( offset, Eigen::placeholders::last ),
+                  Eigen::placeholders::all ) = UTIL::Mat<T>{ R };
+
+        return features;
+    }
+};
+
+// static_assert(
+//     UTIL::Constructor<DefaultConstructor<double, feature_t::default_feature>>
+//     );
+
 // This function is extremely sensitive to the chosen Generator
 template <UTIL::Weight T, bool split = false,
           UTIL::RandomNumberEngine Generator = std::mersenne_twister_engine<
@@ -83,7 +139,8 @@ generate_sparse_triplets(
         for ( const auto [j, n_rows] : sizes | std::views::enumerate ) {
             for ( UTIL::Index i{ offset }; i < offset + n_rows; ++i ) {
                 const auto x{ distribution( gen ) };
-                if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
+                if ( sparsity == static_cast<T>( 1. )
+                     || x < sparsity * static_cast<T>( rows * cols ) ) {
                     triplets.push_back(
                         Eigen::Triplet{ i, j, gen_value( x, gen ) } );
                 }
@@ -95,7 +152,8 @@ generate_sparse_triplets(
         for ( UTIL::Index i{ 0 }; i < rows; ++i ) {
             for ( UTIL::Index j{ 0 }; j < cols; ++j ) {
                 const auto x{ distribution( gen ) };
-                if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
+                if ( sparsity == static_cast<T>( 1. )
+                     || x < sparsity * static_cast<T>( rows * cols ) ) {
                     triplets.push_back(
                         Eigen::Triplet{ i, j, gen_value( x, gen ) } );
                 }
@@ -104,6 +162,10 @@ generate_sparse_triplets(
     }
 
     triplets.shrink_to_fit();
+    std::cout << "SPARSENESS: "
+              << static_cast<T>( triplets.size() )
+                     / static_cast<T>( rows * cols )
+              << std::endl;
     return triplets;
 }
 
