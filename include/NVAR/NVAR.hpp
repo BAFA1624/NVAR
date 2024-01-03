@@ -148,7 +148,7 @@ class NVAR
             reconstruction << regenerated, labels;
 
             // Write to file
-            const auto write_success{ CSV::SimpleCSV::write<T>(
+            const auto write_success{ CSV::SimpleCSV<T>::template write<T>(
                 std::filesystem::absolute( m_reconstruction_path ),
                 reconstruction, m_col_titles ) };
 
