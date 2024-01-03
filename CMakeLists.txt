@@ -173,6 +173,12 @@ add_custom_target(
 	COMMENT "ESN doublescroll"
 )
 add_custom_command(
+	TARGET ESNdoublescroll PRE_BUILD
+	COMMAND python3.11 ./create_test_data.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+	COMMENT "Generating doublescroll data."
+)
+add_custom_command(
 	TARGET ESNdoublescroll POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
 	COMMENT "Transferring compile_commands.json"
