@@ -41,7 +41,7 @@ if len(forecast_keys) > 1:
         ax1min = min(forecast_data[lkey])
         ax1max = max(forecast_data[lkey])
         ax1.plot(
-            #times,
+            times,
             forecast_data[fkey],
             label=fkey,
             linestyle="",
@@ -50,14 +50,18 @@ if len(forecast_keys) > 1:
             color="r",
         )
         ax1.plot(
-            #times,
+            times,
             forecast_data[lkey],
             label=f"True {fkey}",
             linestyle="-",
             linewidth=0.7,
             color="k",
         )
-        #ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
+        if np.any(np.isnan(forecast_data[fkey])):
+            print("Nan detected.")
+        if np.any(np.isinf(forecast_data[fkey])):
+            print("Inf detected, constraining y axis.")
+            ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
         ax1.set_title(f"Forecast: {fkey}")
         ax1.legend()
 else:
@@ -70,7 +74,7 @@ else:
     ax1min = min(forecast_data[lkey])
     ax1max = max(forecast_data[lkey])
     ax1.plot(
-        #times,
+        # times,
         forecast_data[fkey],
         label=fkey,
         linestyle="",
@@ -79,14 +83,18 @@ else:
         color="r",
     )
     ax1.plot(
-        #times,
+        # times,
         forecast_data[lkey],
         label=f"True {fkey}",
         linestyle="-",
         linewidth=0.7,
         color="k",
     )
-    #ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
+    if np.any(np.isnan(forecast_data[fkey])):
+        print("Nan detected.")
+    if np.any(np.inf(forecast_data[fkey])):
+        print("Inf detected, constraining y axis.")
+        ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
     ax1.set_title(f"Forecast: {fkey}")
     ax1.legend()
 
