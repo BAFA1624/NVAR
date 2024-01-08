@@ -1,6 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import matplotlib as mpl
+
+
+# Setting global plotting parameters
+mpl.rcParams["font.family"] = "Times New Roman"
+mpl.rcParams["axes.titlesize"] = 20
+mpl.rcParams["axes.labelsize"] = 18
+mpl.rcParams["xtick.labelsize"] = 14
+mpl.rcParams["ytick.labelsize"] = 14
+mpl.rcParams["xtick.direction"] = "in"
+mpl.rcParams["ytick.direction"] = "in"
+mpl.rcParams["legend.fontsize"] = 14
+
 
 data_dir = os.path.dirname(os.path.abspath(__file__))
 

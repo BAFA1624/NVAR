@@ -85,24 +85,20 @@ class SimpleCSV
     template <typename T2 = T, Index R = -1, Index C = -1>
         requires std::convertible_to<T2, T>
     [[nodiscard]] static inline bool
-    write( const std::filesystem::path file, const RefMat<T2, R, C> m,
+    write( const std::filesystem::path file, const ConstRefMat<T2, R, C> & m,
            const std::vector<std::string> & titles = {} ) noexcept;
     template <typename T2 = T>
         requires std::convertible_to<T2, T>
     [[nodiscard]] static inline bool
-    write( const std::filesystem::path file, const RefMat<T2, -1, -1> m,
+    write( const std::filesystem::path file, const ConstRefMat<T2, -1, -1> & m,
            const std::vector<std::string> & titles = {} ) noexcept;
 
     [[nodiscard]] constexpr auto & rows() const noexcept { return m_rows; };
     [[nodiscard]] constexpr auto & cols() const noexcept { return m_cols; };
     [[nodiscard]] constexpr std::vector<std::string>
     col_titles() const noexcept {
-        std::vector<std::string> v;
-        const auto               view{ std::views::keys( m_title_map ) };
-        if constexpr ( std::ranges::sized_range<decltype( view )> ) {
-            v.reserve( std::ranges::size( view ) );
-        }
-        std::ranges::copy( view, std::back_inserter( v ) );
+        std::vector<std::string> v( m_title_map.size() );
+        for ( const auto & [key, idx] : m_title_map ) { v[idx] = key; }
         return v;
     }
 };
@@ -278,7 +274,8 @@ template <Valid_t T>
 template <typename T2, Index R, Index C>
     requires std::convertible_to<T2, T>
 inline bool
-SimpleCSV<T>::write( const std::filesystem::path file, const RefMat<T2, R, C> m,
+SimpleCSV<T>::write( const std::filesystem::path      file,
+                     const ConstRefMat<T2, R, C> &    m,
                      const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {
@@ -314,7 +311,7 @@ template <typename T2>
     requires std::convertible_to<T2, T>
 inline bool
 SimpleCSV<T>::write( const std::filesystem::path      file,
-                     const RefMat<T2, -1, -1>         m,
+                     const ConstRefMat<T2, -1, -1> &  m,
                      const std::vector<std::string> & titles ) noexcept {
     std::ofstream fp( file, std::ofstream::out | std::ofstream::binary );
     if ( fp.is_open() ) {

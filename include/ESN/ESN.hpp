@@ -370,6 +370,34 @@ template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
           feature_t Feature_init, UTIL::Solver S,
           UTIL::RandomNumberEngine Generator, bool target_difference,
           Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
+constexpr inline UTIL::ConstRefMat<T>
+ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
+    _Options, _StorageIndex>::transform_labels( const UTIL::ConstRefMat<T> & y )
+    const noexcept {
+    if ( m_train_targets.size() != 0 ) {
+        // Check pass-through indices are valid
+        if ( std::ranges::max( m_train_targets ) >= m_d
+             || std::ranges::min( m_train_targets ) < 0 ) {
+            std::cerr << std::format(
+                "Pass-through indices must meet the requirement: {} > {} && 0 "
+                "<= "
+                "{}.\n",
+                m_d, std::ranges::max( m_train_targets ),
+                std::ranges::min( m_train_targets ) );
+            exit( EXIT_FAILURE );
+        }
+    }
+    else {
+        return y;
+    }
+
+    return y( Eigen::placeholders::all, m_train_targets );
+}
+
+template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
+          feature_t Feature_init, UTIL::Solver S,
+          UTIL::RandomNumberEngine Generator, bool target_difference,
+          Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
 constexpr inline UTIL::Mat<T>
 ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     _Options, _StorageIndex>::wi_xi( const UTIL::ConstRefMat<T> & xi )
@@ -441,10 +469,6 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     // Calculate each data input multiplied with input weights
     UTIL::Mat<T> W_X = wi_xi( X );
 
-    std::cout << std::format( "W_X: {}\n",
-                              UTIL::mat_shape_str<T, -1, -1>( W_X ) );
-    std::cout << std::format( "X: {}\n", UTIL::mat_shape_str<T, -1, -1>( X ) );
-
     // Calculate each reservoir state
     for ( UTIL::Index col{ 1 }; col < X.cols() + 1; ++col ) {
         reservoir_states.col( col ) =
@@ -453,34 +477,6 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     // Return all reservoir states, except initial (all zeros)
     return reservoir_states.rightCols( X.cols() );
-}
-
-template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
-          feature_t Feature_init, UTIL::Solver S,
-          UTIL::RandomNumberEngine Generator, bool target_difference,
-          Eigen::StorageOptions _Options, std::signed_integral _StorageIndex>
-constexpr inline UTIL::ConstRefMat<T>
-ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
-    _Options, _StorageIndex>::transform_labels( const UTIL::ConstRefMat<T> & y )
-    const noexcept {
-    if ( m_train_targets.size() != 0 ) {
-        // Check pass-through indices are valid
-        if ( std::ranges::max( m_train_targets ) >= m_d
-             || std::ranges::min( m_train_targets ) < 0 ) {
-            std::cerr << std::format(
-                "Pass-through indices must meet the requirement: {} > {} && 0 "
-                "<= "
-                "{}.\n",
-                m_d, std::ranges::max( m_train_targets ),
-                std::ranges::min( m_train_targets ) );
-            exit( EXIT_FAILURE );
-        }
-    }
-    else {
-        return y;
-    }
-
-    return y( Eigen::placeholders::all, m_train_targets );
 }
 
 template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
@@ -544,7 +540,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
         features( Eigen::seq( offset, offset + m_d - 1 ),
                   Eigen::placeholders::all )
-            << UTIL::Mat<T>{ X };
+            << X;
         offset += m_d;
     }
 
@@ -553,7 +549,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     // Add reservoir states to feature matrix
     features( Eigen::seq( offset, Eigen::placeholders::last ),
-              Eigen::placeholders::all ) = UTIL::Mat<T>{ R };
+              Eigen::placeholders::all ) = R;
 
     return features;
 }
@@ -605,21 +601,22 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
         reservoir_states( Eigen::placeholders::all, Eigen::placeholders::last );
 
     if constexpr ( target_difference ) {
-        const auto targets{ transform_labels( y - scaled_X ) };
+        const auto targets{ transform_labels( m_input_scale * y - scaled_X ) };
         m_w_out = m_solver.solve(
-            feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup ),
+            feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup )
+                .transpose(),
             targets.bottomRows( y.rows() - m_n_warmup ) );
     }
     else {
         const auto targets{ transform_labels( y ) };
         m_w_out = m_solver.solve(
-            feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup ),
+            feature_vectors.rightCols( feature_vectors.cols() - m_n_warmup )
+                .transpose(),
             targets.bottomRows( y.rows() - m_n_warmup ) );
     }
 
     m_train_complete = true;
 }
-
 
 template <UTIL::Weight T, input_t W_in_init, adjacency_t A_init,
           feature_t Feature_init, UTIL::Solver S,
@@ -648,7 +645,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     // Warmup stage
     for ( UTIL::Index i{ 0 }; i < m_n_warmup; ++i ) {
         // Exact labels used during warmup
-        m_xi = labels.row( i );
+        m_xi = m_input_scale * labels.row( i );
         m_wi_xi = wi_xi( m_xi );
         m_reservoir = R_next( m_reservoir, m_wi_xi );
     }
@@ -658,7 +655,8 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     for ( UTIL::Index i{ m_n_warmup }; i < labels.rows(); ++i ) {
         // Construct feature vector
-        const auto feature_vector{ construct_feature( m_xi, m_reservoir ) };
+        const auto feature_vector{ construct_feature( m_input_scale * m_xi,
+                                                      m_reservoir ) };
 
         // Predict next step
         const auto prediction = m_w_out * feature_vector;
@@ -672,6 +670,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
         // Write to result
         results.row( i - m_n_warmup ) = m_xi.transpose();
+        m_xi *= m_input_scale;
 
         // Set internal wi_xi
         m_wi_xi = wi_xi( m_xi );

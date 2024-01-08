@@ -30,9 +30,7 @@ class NVAR
     T            m_c;
     UTIL::Mat<T> m_w_out;
 
-    // Indices used to generate nonlinear features
-    std::vector<std::vector<UTIL::Index>> m_nonlinear_indices;
-
+    std::vector<UTIL::Index> m_train_targets;
 
     // Data sizes
     UTIL::Index m_n_training_inst;  // Number of training samples
@@ -52,6 +50,8 @@ class NVAR
     // File to write reconstructed data to
     std::filesystem::path m_reconstruction_path;
 
+    [[nodiscard]] constexpr inline UTIL::Mat<T>
+    transform_labels( const UTIL::ConstRefMat<T> & y ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Mat<T>
     construct_linear_vec( const UTIL::ConstRefMat<T> & samples ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Mat<T> construct_nonlinear_vec(
@@ -73,6 +73,7 @@ class NVAR
           const UTIL::ConstRefMat<T> & labels, const UTIL::Index d,
           const UTIL::Index k, const UTIL::Index s, const UTIL::Index p,
           const bool use_constant, const T constant = T{ 0. },
+          const std::vector<UTIL::Index> & train_targets = {},
           const UTIL::Solver auto          solver = L2Solver<T>( T{ 0.001 } ),
           const bool                       reconstruct_training = false,
           const std::vector<std::string> & reconstruction_titles = {},
@@ -83,6 +84,7 @@ class NVAR
         m_p( p ),
         m_use_constant( use_constant ),
         m_c( constant ),
+        m_train_targets( train_targets ),
         m_n_training_inst( samples.rows() - s * ( k - 1 ) ),
         m_n_linear_feat( d * k ),
         m_n_nonlinear_feat( def_nonlinear_size<Nonlin>( d, k, p ) ),
@@ -105,10 +107,11 @@ class NVAR
             linear_features, nonlinear_features ) };
 
         if constexpr ( target_difference ) {
-            m_w_out = train_W_out( labels - samples, total_features );
+            m_w_out = train_W_out( transform_labels( labels - samples ),
+                                   total_features );
         }
         else {
-            m_w_out = train_W_out( labels, total_features );
+            m_w_out = train_W_out( transform_labels( labels ), total_features );
         }
 
         if ( m_reconstruct_training ) {
@@ -135,11 +138,14 @@ class NVAR
             }
 
             // Attempt to regenerate training data
-            auto regenerated{ ( m_w_out * total_features ).transpose() };
+            UTIL::Mat<T> regenerated{
+                ( m_w_out * total_features ).transpose()
+            };
             if constexpr ( target_difference ) {
-                for ( UTIL::Index r{ 0 }; r < samples.rows(); ++r ) {
-                    regenerated.row( r ) += samples.row( r );
-                }
+                regenerated += samples;
+                // for ( UTIL::Index r{ 0 }; r < samples.rows(); ++r ) {
+                //     regenerated.row( r ) += samples.row( r );
+                // }
             }
 
             // Add labels for plotting
@@ -164,10 +170,34 @@ class NVAR
     }
 
     [[nodiscard]] constexpr inline UTIL::Mat<T>
-    forecast( const UTIL::ConstRefMat<T> &     warmup,
-              const UTIL::ConstRefMat<T> &     labels,
-              const std::vector<UTIL::Index> & pass_through ) const noexcept;
+    forecast( const UTIL::ConstRefMat<T> & warmup,
+              const UTIL::ConstRefMat<T> & labels ) const noexcept;
 };
+
+template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
+          bool target_difference>
+[[nodiscard]] constexpr inline UTIL::Mat<T>
+NVAR<T, Nonlin, S, target_difference>::transform_labels(
+    const UTIL::ConstRefMat<T> & y ) const noexcept {
+    if ( m_train_targets.size() != 0 ) {
+        // Check pass-through indices are valid
+        if ( std::ranges::max( m_train_targets ) >= m_d
+             || std::ranges::min( m_train_targets ) < 0 ) {
+            std::cerr << std::format(
+                "Pass-through indices must meet the requirement: {} > {} && 0 "
+                "<= "
+                "{}.\n",
+                m_d, std::ranges::max( m_train_targets ),
+                std::ranges::min( m_train_targets ) );
+            exit( EXIT_FAILURE );
+        }
+    }
+    else {
+        return y;
+    }
+
+    return y( Eigen::placeholders::all, m_train_targets );
+}
 
 template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
           bool target_difference>
@@ -193,10 +223,6 @@ NVAR<T, Nonlin, S, target_difference>::construct_nonlinear_vec(
             []( const T x ) { return std::exp( x ); } );
     }
     else {
-        // const auto indices{ combinations_with_replacement_indices( m_d * m_k,
-        //                                                            m_p ) };
-        // nonlinear_features = apply_indices<T>( linear_features, indices );
-
         for ( UTIL::Index i{ 0 }; i < m_n_training_inst; ++i ) {
             nonlinear_features.col( i ) << combinations_with_replacement<T>(
                 linear_features.col( i ), m_d * m_k, m_p );
@@ -261,28 +287,20 @@ template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
 NVAR<T, Nonlin, S, target_difference>::train_W_out(
     const UTIL::ConstRefMat<T> & labels,
     const UTIL::ConstRefMat<T> & total_feature_vec ) noexcept {
-    return m_solver.solve( total_feature_vec, labels );
+    return m_solver.solve( total_feature_vec.transpose(), labels );
 }
 
 template <UTIL::Weight T, nonlinear_t Nonlin, UTIL::Solver S,
           bool target_difference>
 [[nodiscard]] constexpr inline UTIL::Mat<T>
 NVAR<T, Nonlin, S, target_difference>::forecast(
-    const UTIL::ConstRefMat<T> & warmup, const UTIL::ConstRefMat<T> & labels,
-    const std::vector<UTIL::Index> & pass_through ) const noexcept {
-    [[maybe_unused]] const UTIL::Index max_idx{ *std::max_element(
-        pass_through.cbegin(), pass_through.cend() ) };
-    [[maybe_unused]] const UTIL::Index min_idx{ *std::min_element(
-        pass_through.cbegin(), pass_through.cend() ) };
-    assert( max_idx < warmup.cols() && min_idx >= 0 );
+    const UTIL::ConstRefMat<T> & warmup,
+    const UTIL::ConstRefMat<T> & labels ) const noexcept {
+    UTIL::Mat<T>    result = labels;
+    UTIL::RowVec<T> prev_value{ warmup.row( warmup.rows() - 1 ) };
+    UTIL::Mat<T>    samples = warmup;
 
-    const UTIL::Index N{ labels.rows() };
-    UTIL::Mat<T>      result{ UTIL::Mat<T>::Zero( N, m_d ) };
-    UTIL::RowVec<T>   new_val( 2 );
-    UTIL::RowVec<T>   prev_value{ warmup.row( warmup.rows() - 1 ) };
-    UTIL::Mat<T>      samples = warmup;
-
-    for ( UTIL::Index i{ 0 }; i < N; ++i ) {
+    for ( UTIL::Index i{ 0 }; i < labels.rows(); ++i ) {
         // Construct total feature vector
         UTIL::Vec<T> lin_feat = construct_x_i<T>( samples, m_k, m_s );
         UTIL::Vec<T> nonlin_feat = construct_nonlinear_inst( lin_feat );
@@ -296,18 +314,17 @@ NVAR<T, Nonlin, S, target_difference>::forecast(
         }
 
         // Make next step prediction
-        new_val = ( m_w_out * total_feat ).transpose();
-        if constexpr ( target_difference ) {
-            new_val += prev_value;
+        const auto prediction{ m_w_out * total_feat };
+
+        UTIL::Index j{ 0 };
+        for ( const auto idx : m_train_targets ) {
+            result( i, idx ) = prediction[j++];
+            if constexpr ( target_difference ) {
+                result( i, idx ) += prev_value[idx];
+            }
         }
 
-        // Pass-through any specified true values
-        for ( const auto idx : pass_through ) {
-            new_val[idx] = labels( i, idx );
-        }
-
-        // Assign prediction to result & cycle samples
-        result.row( i ) << new_val;
+        // Cycle samples and set new previous values
         samples = cycle_inputs<T>( samples, result.row( i ) );
         prev_value << result.row( i );
     }

@@ -1,6 +1,19 @@
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import os
+
+
+# Setting global plotting parameters
+mpl.rcParams["font.family"] = "Times New Roman"
+mpl.rcParams["axes.titlesize"] = 18
+mpl.rcParams["axes.labelsize"] = 16
+mpl.rcParams["xtick.labelsize"] = 14
+mpl.rcParams["ytick.labelsize"] = 14
+mpl.rcParams["xtick.direction"] = "in"
+mpl.rcParams["ytick.direction"] = "in"
+mpl.rcParams["legend.fontsize"] = 14
+
 
 data_stride = 3
 data_dir = os.path.dirname(os.path.abspath(__file__))
@@ -70,113 +83,15 @@ assert len(forecast_keys) == len(label_keys)
 
 times = forecast_data["t"]
 
-if len(forecast_keys) > 1:
-    # Plotting
-    fig, axs = plt.subplots(
-        len(forecast_keys), 2, constrained_layout=True, figsize=(20, 10)
-    )
-    for fkey, lkey, (ax1, ax2) in zip(forecast_keys, label_keys, axs):
-        # Plot reconstruction of training data
+fig, ax2 = plt.subplots(1, 1, figsize=(12, 4))
 
-        ax1min = min(reconstruction_data[lkey])
-        ax1max = max(reconstruction_data[lkey])
+#ax1.plot(times, forecast_data["I"], linestyle="", marker="o", markersize=1, color="r")
+#ax1.plot(times, forecast_data["I'"], linestyle="-", linewidth=0.8, color="k")
+#ax1.set_ylabel("Standardized Current / mA")
+ax2.plot(times, forecast_data["V"], linestyle="", marker="o", markersize=1, color="r")
+ax2.plot(times, forecast_data["V'"], linestyle="-", linewidth=0.8, color="k")
+ax2.set_xlabel("Time / ms")
+ax2.set_ylabel("Standardized Voltage / mV")
 
-        n = len(reconstruction_data[fkey])
-        ax1.plot(
-            # reconstruction_labels["t"][-n:],
-            reconstruction_data[fkey],
-            label=fkey,
-            linestyle="",
-            marker="o",
-            markersize=1,
-            color="r",
-        )
-        ax1.plot(
-            # reconstruction_labels["t"][-n:],
-            reconstruction_data[lkey],
-            label="True Signal",
-            linestyle="-",
-            linewidth=0.7,
-            color="k",
-        )
-        ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
-        ax1.set_title(f"Reconstructed Training Data: {fkey}")
-        ax1.legend()
-
-        # Plot forecasted data
-        ax2min = min(forecast_data[lkey])
-        ax2max = max(forecast_data[lkey])
-        ax2.plot(
-            #times,
-            forecast_data[fkey],
-            label=fkey,
-            linestyle="",
-            marker="o",
-            markersize=1,
-            color="r",
-        )
-        ax2.plot(
-            #times,
-            forecast_data[lkey],
-            label=f"True {fkey}",
-            linestyle="-",
-            linewidth=0.7,
-            color="k",
-        )
-        ax2.set_ylim(ax2min - 0.1 * abs(ax2min), ax2max + 0.1 * abs(ax2max))
-        ax2.set_title(f"Forecast: {fkey}")
-        ax2.legend()
-else:
-    print("sdlkfjf")
-    fig = plt.figure(constrained_layout=True, figsize=(20, 10))
-    ax1 = fig.add_subplot(121)
-    ax2 = fig.add_subplot(122)
-
-    fkey = forecast_keys[0]
-    lkey = label_keys[0]
-
-    ax1min = min(reconstruction_data[lkey])
-    ax1max = max(reconstruction_data[lkey])
-    ax1.plot(
-        reconstruction_data[fkey],
-        label=fkey,
-        linestyle="",
-        marker="o",
-        markersize=1,
-        color="r",
-    )
-    ax1.plot(
-        reconstruction_data[lkey],
-        label="True Signal",
-        linestyle="-",
-        linewidth=0.7,
-        color="k",
-    )
-    ax1.set_ylim(ax1min - 0.1 * abs(ax1min), ax1max + 0.1 * abs(ax1max))
-    ax1.set_title(f"Reconstructed Training Data: {fkey}")
-    ax1.legend()
-
-    ax2min = min(forecast_data[lkey])
-    ax2max = max(forecast_data[lkey])
-    ax2.plot(
-        times,
-        forecast_data[fkey],
-        label=fkey,
-        linestyle="",
-        marker="o",
-        markersize=1,
-        color="r",
-    )
-    ax2.plot(
-        times,
-        forecast_data[lkey],
-        label=f"True {fkey}",
-        linestyle="-",
-        linewidth=0.7,
-        color="k",
-    )
-    ax2.set_ylim(ax2min - 0.1 * abs(ax2min), ax2max + 0.1 * abs(ax2max))
-    ax2.set_title(f"Forecast: {fkey}")
-    ax2.legend()
-
+plt.tight_layout()
 plt.show()

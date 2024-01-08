@@ -139,8 +139,7 @@ generate_sparse_triplets(
         for ( const auto [j, n_rows] : sizes | std::views::enumerate ) {
             for ( UTIL::Index i{ offset }; i < offset + n_rows; ++i ) {
                 const auto x{ distribution( gen ) };
-                if ( sparsity == static_cast<T>( 1. )
-                     || x < sparsity * static_cast<T>( rows * cols ) ) {
+                if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
                     triplets.push_back(
                         Eigen::Triplet{ i, j, gen_value( x, gen ) } );
                 }
@@ -152,8 +151,7 @@ generate_sparse_triplets(
         for ( UTIL::Index i{ 0 }; i < rows; ++i ) {
             for ( UTIL::Index j{ 0 }; j < cols; ++j ) {
                 const auto x{ distribution( gen ) };
-                if ( sparsity == static_cast<T>( 1. )
-                     || x < sparsity * static_cast<T>( rows * cols ) ) {
+                if ( sparsity == static_cast<T>( 1. ) || x < sparsity ) {
                     triplets.push_back(
                         Eigen::Triplet{ i, j, gen_value( x, gen ) } );
                 }

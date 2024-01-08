@@ -185,7 +185,7 @@ add_custom_command(
 )
 add_custom_command(
 	TARGET ESN_doublescroll POST_BUILD
-	COMMAND python3.11 ./plot_esn.py
+	COMMAND python3.11 ./plot_doublescroll_esn.py
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
 	COMMENT "Plotting ESN forecast."
 )
@@ -215,6 +215,26 @@ add_custom_target(
 	COMMENT "Testing RMSE"
 )
 
+# Distribution plotting
+add_executable(dist_gen src/signal_distributions.cpp)
+add_custom_target(
+	gen_distributions
+	COMMAND dist_gen
+	DEPENDS dist_gen
+	COMMENT "Generating data for distributions"
+)
+add_custom_command(
+	TARGET dist_gen POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+	COMMENT "Transferring compile_commands.json"
+)
+add_custom_command(
+	TARGET gen_distributions POST_BUILD
+	COMMAND python3.11 ./distribution.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+	COMMENT "Plotting distributions"
+)
+
 # Testing target stuff
 add_executable(unit_test src/unit_test.cpp)
 add_test(test_build
@@ -241,3 +261,4 @@ target_link_libraries(ESNtest PRIVATE ${LINK_LIBS})
 target_link_libraries(RMSEtest PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNdoublescroll PRIVATE ${LINK_LIBS})
 target_link_libraries(ESNopt PRIVATE ${LINK_LIBS})
+target_link_libraries(dist_gen PRIVATE ${LINK_LIBS})

@@ -207,27 +207,21 @@ class L2Solver
 
     constexpr inline Mat<T> solve( const ConstRefMat<T> & X,
                                    const ConstRefMat<T> & y ) const noexcept {
-        const auto X_2{ X * X.transpose() };
+        const auto X_2{ X.transpose() * X };
         const auto regularization_matrix{
             m_ridge * Mat<T>::Identity( X_2.rows(), X_2.cols() )
         };
         const auto sum{ X_2 + regularization_matrix };
-        const auto y_X{ y.transpose() * X.transpose() };
-        const auto inv{ sum.partialPivLu().inverse() };
-        std::cout << std::format( "sum: {}\n",
-                                  mat_shape_str<T, -1, -1>( sum ) );
-        std::cout << std::format( "y_X: {}\n",
-                                  mat_shape_str<T, -1, -1>( y_X ) );
-        // const Mat<T> result{ y_X * inv };
-        // const Mat<T> result{
-        //    sum.template partialPivLu().solve( X_y ).transpose()
-        //};
-        // std::cout << std::format( "result: {}\n",
-        //                          mat_shape_str<T, -1, -1>( result ) );
+        // const auto   inv{ sum.partialPivLu().inverse() };
+        const auto   inv{ sum.inverse() };
+        const auto   y_T_X{ X.transpose() * y };
+        const Mat<T> result{ ( inv * y_T_X ).transpose() };
 
-        return y_X * inv;
+        return result;
     }
 };
+
+static_assert( Solver<L2Solver<double>> );
 
 // template <Weight T>
 // class AltL2Solver
@@ -247,8 +241,6 @@ class L2Solver
 //
 //     }
 // };
-
-static_assert( Solver<L2Solver<double>> );
 
 // DataPreprocessor concept
 template <typename P>
@@ -323,7 +315,7 @@ class Standardizer
                 ( data.col( i ).array() - means[i] )
                     .unaryExpr( []( const auto x ) { return x * x; } )
                     .sum()
-                / static_cast<T>( data.rows() - 1 ) );
+                / static_cast<T>( data.rows() ) );
         }
         return std;
     }
@@ -577,7 +569,6 @@ test_split( const ConstRefMat<T> & raw_data, const FeatureVecShape & shape,
 
         test_warmup.col( i ) =
             data( Eigen::seq( offset, offset + warmup_offset ), data_col );
-
 
         test_labels.col( i ) =
             data( Eigen::seq( offset + warmup_offset + 1,

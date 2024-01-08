@@ -419,7 +419,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << "window_RMSE_11:\n" << window_RMSE_11 << std::endl;
 #endif
 #ifdef ESN_TEST
-    using T = float;
+    using T = double;
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
@@ -429,11 +429,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
-    const unsigned    seed{ 1352 };
-    const UTIL::Index d{ 2 }, n_node{ 2000 }, n_warmup{ 1000 },
-        data_stride{ 2 };
-    const T leak{ 0.95 }, sparsity{ 0.001 }, spectral_radius{ 0.6 },
-        alpha{ 1E0 }, bias{ 1. }, input_scale{ 0.25 };
+    const unsigned    seed{ 1284 };
+    const UTIL::Index d{ 2 }, n_node{ 4000 }, n_warmup{ 000 }, data_stride{ 2 };
+    const T           leak{ 0.85 }, sparsity{ 0.005 }, spectral_radius{ 0.8 },
+        alpha{ 4E-3 }, bias{ 1. }, input_scale{ 1. };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -442,13 +441,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto w_in_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( -0.5, 0.5 ) };
+            static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
             return dist( gen );
         };
     const auto adjacency_func =
         []<UTIL::Weight T, UTIL::RandomNumberEngine Generator>(
             [[maybe_unused]] const T x, [[maybe_unused]] Generator & gen ) {
-            static auto dist{ std::uniform_real_distribution<T>( -0.5, 0.5 ) };
+            static auto dist{ std::uniform_real_distribution<T>( -1., 1. ) };
             return dist( gen );
         };
 
@@ -463,7 +462,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     };
 
     const auto [train_pair, test_labels] = data_split<T>(
-        data_pool, 0.8, feature_shape, data_stride, UTIL::Standardizer<T>{} );
+        data_pool, 0.75, feature_shape, data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
 
     std::cout << std::format( "train_samples: {}, train_labels: {}\n",
@@ -474,14 +473,13 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto init_start{ std::chrono::steady_clock::now() };
     ESN::ESN<
         /* value_t */ T,
-        /* input weight type */ ESN::input_t::dense | ESN::input_t::split,
+        /* input weight type */ ESN::input_t::dense | ESN::input_t::homogeneous,
         /* adjacency matrix type */ ESN::adjacency_t::sparse,
-        /* feature_shape */ /*ESN::feature_t::bias |*/ /*ESN::feature_t::linear
-            |*/
-        ESN::feature_t::reservoir,
+        /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
+            | ESN::feature_t::reservoir,
         /* Solver type */ UTIL::L2Solver<T>,
         /* generator type */ std::mt19937,
-        /* target_difference */ false>
+        /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
                      bias, input_scale, { 1 }, activation_func, solver,
                      w_in_func, adjacency_func );
@@ -550,7 +548,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     }
 #endif
 #ifdef ESN_DOUBLESCROLL
-    using T = float;
+    using T = double;
 
     // Doublescroll
     const std::filesystem::path doublescroll_train_path{
@@ -576,15 +574,20 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
     const auto doublescroll_train_data{ doublescroll_train_csv.atv() };
     const auto doublescroll_test_data{ doublescroll_test_csv.atv() };
+    std::cout << std::format(
+        "train_data: {}\ntest_data: {}\n",
+        UTIL::mat_shape_str<T, -1, -1>( doublescroll_train_data ),
+        UTIL::mat_shape_str<T, -1, -1>( doublescroll_test_data ) );
 
-    const UTIL::FeatureVecShape doublescroll_feature_shape{ { 1, 0 },
-                                                            { 2, 0 },
-                                                            { 3, 0 } };
+    const UTIL::FeatureVecShape doublescroll_feature_shape{
+        { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 }
+    };
 
-    const unsigned    seed{ 0 };
-    const UTIL::Index d{ 3 }, n_node{ 300 }, n_warmup{ 0 }, data_stride{ 1 };
-    const T           leak{ 0.95 }, sparsity{ 0.1 }, spectral_radius{ 0.4 },
-        alpha{ 3E-3 }, bias{ 1. }, input_scale{ 1. };
+    const unsigned    seed{ 423 };
+    const UTIL::Index d{ 3 }, n_node{ 1500 }, n_warmup{ 0 }, data_stride{ 1 };
+    const T           leak{ 0.05 }, sparsity{ 0.005 }, spectral_radius{ 0.25 },
+        alpha{ 8E-6 }, bias{ 1. }, input_scale{ 1. };
+    const std::vector<UTIL::Index> train_targets{ 1 };
 
     const auto activation_func = []<UTIL::Weight T>( const T x ) {
         return std::tanh( x );
@@ -610,17 +613,17 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     std::cout << std::format( "data_stride: {}\n", data_stride );
 
     const auto init_start{ std::chrono::steady_clock::now() };
-    ESN::ESN</* value_t */ T,
-             /* input weight type */ ESN::input_t::dense
-                 | ESN::input_t::homogeneous,
-             /* adjacency matrix type */ ESN::adjacency_t::sparse,
-             /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
-                 | ESN::feature_t::reservoir,
-             /* Solver type */ UTIL::L2Solver<T>,
-             /* generator type */ std::mt19937,
-             /* target_difference */ true>
+    ESN::ESN<
+        /* value_t */ T,
+        /* input weight type */ ESN::input_t::dense | ESN::input_t::homogeneous,
+        /* adjacency matrix type */ ESN::adjacency_t::sparse,
+        /* feature_shape */ ESN::feature_t::bias | ESN::feature_t::linear
+            | ESN::feature_t::reservoir,
+        /* Solver type */ UTIL::L2Solver<T>,
+        /* generator type */ std::mt19937,
+        /* target_difference */ true>
         split_dense( d, n_node, leak, sparsity, spectral_radius, seed, n_warmup,
-                     bias, input_scale, { 1, 2 }, activation_func, solver,
+                     bias, input_scale, train_targets, activation_func, solver,
                      w_in_func, adjacency_func );
 
     const auto init_finish{ std::chrono::steady_clock::now() };
@@ -628,7 +631,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto [doublescroll_train_pair, doublescroll_test_labels] =
         data_split<T>( doublescroll_train_data, doublescroll_test_data,
                        doublescroll_feature_shape, data_stride,
-                       UTIL::NullProcessor<T>{} );
+                       UTIL::Standardizer<T>{} );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
 
@@ -661,15 +664,18 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     // Write results to file
     // Write location
     const std::filesystem::path write_path{
-
-        "../data/forecast_data/esn_forecast.csv"
+        "../data/forecast_data/esn_doublescroll_forecast.csv"
     };
 
     const std::vector<std::string> col_titles{ "t",  "I",   "V1", "V2",
                                                "I'", "V1'", "V2'" };
 
-    UTIL::Mat<T> forecast_data( forecast.rows(),
-                                static_cast<UTIL::Index>( col_titles.size() ) );
+    std::cout << std::format(
+        "forecast: {}\ndoublescroll_test_labels: {}\n",
+        UTIL::mat_shape_str<T, -1, -1>( forecast ),
+        UTIL::mat_shape_str<T, -1, -1>( doublescroll_test_labels ) );
+    UTIL::Mat<T> forecast_data(
+        forecast.rows(), forecast.cols() + doublescroll_test_labels.cols() );
 
     forecast_data << doublescroll_test_labels.leftCols( 1 ).bottomRows(
         doublescroll_test_labels.rows() - n_warmup ),
@@ -688,7 +694,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     }
 #endif
 #ifdef FORECAST
-    using T = float;
+    using T = double;
 
     const std::filesystem::path data_path{
         "../data/train_test_src/17_measured.csv"
@@ -698,47 +704,83 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         /*delim*/ ",", /*max_line_size*/ 256 ) };
     const auto data_pool{ data_csv.atv( 0, 0 ) };
 
-    const bool        use_const{ true };
-    const T           alpha{ 1E-3 }, constant{ 1 };
-    const UTIL::Index d{ 2 }, k{ 3 }, s{ 2 }, p{ 3 }, data_stride{ 2 };
-    std::cout << std::format( "data_stride: {}\n", data_stride );
-    std::cout << std::format( "alpha: {}, use_const: {}, constant: {}\n", alpha,
-                              use_const ? "true" : "false", constant );
-    std::cout << std::format( "d = {}, k = {}, s = {}, p = {}\n", d, k, s, p );
-
     const std::vector<std::tuple<UTIL::Index, UTIL::Index>> feature_shape{
         { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
+    const bool                 use_const{ true };
+    const T /*alpha{ 5E-2 },*/ constant{ 1 };
+    const UTIL::Index d{ 2 }, /*k{ 3 }, s{ 5 }, p{ 2 },*/ data_stride{ 4 };
+    const std::vector<UTIL::Index> train_targets{ 1 };
 
-    // const auto [train_samples, train_labels] = train_split<T>(
-    //     train_data_pool, feature_shape, k, s, data_stride );
-    // const auto [test_warmup, test_labels] = test_split<T>(
-    //     test_data_pool, feature_shape, k, s, data_stride );
+    const std::vector<UTIL::Index> kvals{ 1, 2, 3, 4 },
+        svals{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, pvals{ 1, 2, 3 };
+    const std::vector<T> alphavals{ 10, 1, .1, .01, .001, 0.0001, 0.00001 };
+
+    UTIL::Index best_k{ 1 }, best_s{ 1 }, best_p{ 1 }, best_alpha{ 10 };
+    T           best_rmse{ 1000000000000. };
+
+    // for ( const auto alpha : alphavals ) {
+    //     for ( const auto k : kvals ) {
+    //         for ( const auto s : svals ) {
+    //             for ( const auto p : pvals ) {
+    //                 std::cout << std::format(
+    //                     "d = {}, k = {}, s = {}, p = {}, alpha = {}\n", d, k,
+    //                     s, p, alpha );
+
+    //                const auto [train_pair, test_pair] =
+    //                    data_split<T>( data_pool, 0.75, feature_shape,
+    //                                   NVAR::warmup_offset( k, s ),
+    //                                   data_stride, UTIL::Standardizer<T>{} );
+    //                const auto [train_samples, train_labels] = train_pair;
+    //                const auto [test_warmup, test_labels] = test_pair;
+
+    //                NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
+    //                    train_samples.rightCols( d ),
+    //                    train_labels.rightCols( d ), d, k, s, p, use_const,
+    //                    constant, train_targets, UTIL::L2Solver<T>( alpha ),
+    //                    false );
+
+
+    //                const auto forecast{ test.forecast(
+    //                    test_warmup.rightCols( d ),
+    //                    test_labels.rightCols( d ) ) };
+
+    //                const auto rmse{ UTIL::RMSE<T>(
+    //                    forecast, test_labels.rightCols( d ) ) };
+    //                std::cout << "rmse: " << rmse << std::endl;
+    //                if ( rmse( 1 ) < best_rmse ) {
+    //                    best_rmse = rmse( 1 );
+    //                    best_k = k;
+    //                    best_s = s;
+    //                    best_p = p;
+    //                    best_alpha = alpha;
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
 
     const auto [train_pair, test_pair] = data_split<T>(
-        data_pool, 0.75, feature_shape, NVAR::warmup_offset( k, s ),
+        data_pool, 0.75, feature_shape, NVAR::warmup_offset( best_k, best_s ),
         data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
     const auto [test_warmup, test_labels] = test_pair;
 
-    std::cout << std::format( "train_samples: {}, train_labels: {}\n",
-                              shape_str<T, -1, -1>( train_samples ),
-                              shape_str<T, -1, -1>( train_labels ) );
-    std::cout << std::format( "test_warmup: {}, test_labels: {}\n",
-                              shape_str<T, -1, -1>( test_warmup ),
-                              shape_str<T, -1, -1>( test_labels ) );
-
-    std::cout << "Training NVAR.\n";
     NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
-        train_samples.rightCols( d ), train_labels.rightCols( d ), d, k, s, p,
-        use_const, constant, UTIL::L2Solver<T>( alpha ), true, { "I", "V" },
+        train_samples.rightCols( d ), train_labels.rightCols( d ), d, best_k,
+        best_s, best_p, use_const, constant, train_targets,
+        UTIL::L2Solver<T>( best_alpha ), true, { "I", "V" },
         "../data/forecast_data/tmp.csv" );
 
+    const auto forecast{ test.forecast( test_warmup.rightCols( d ),
+                                        test_labels.rightCols( d ) ) };
 
-    std::cout << "Forecasting.\n";
-    auto forecast{ test.forecast( test_warmup.rightCols( d ),
-                                  test_labels.rightCols( d ),
-                                  std::vector<UTIL::Index>{ 0 } ) };
+    const auto rmse{ UTIL::RMSE<T>( forecast, test_labels.rightCols( d ) ) };
+    std::cout << "RMSE: " << rmse << std::endl;
+
+    std::cout << std::format(
+        "best_rmse: {}, best_k: {}, best_s: {}, best_p: {}, best_alpha: {}\n",
+        best_rmse, best_k, best_s, best_p, best_alpha );
 
     // Write results out
     std::cout << "Writing results.\n";
@@ -839,7 +881,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
 #endif
 #ifdef DOUBLESCROLL
-    using T = float;
+    using T = double;
 
     std::cout << "Running doublescroll." << std::endl;
 
@@ -868,42 +910,60 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto doublescroll_train_data{ doublescroll_train_csv.atv() };
     const auto doublescroll_test_data{ doublescroll_test_csv.atv() };
 
-    const bool   use_const{ false };
-    const Index  d2{ 3 }, k2{ 2 }, s2{ 1 }, p2{ 3 };
-    const double alpha{ 5E-2 }, constant{ 1 };
+    const bool                     use_const{ false };
+    const UTIL::Index              d2{ 3 }, k2{ 3 }, s2{ 2 }, p2{ 3 };
+    const T                        alpha{ 1E-1 }, constant{ 1 };
+    const std::vector<UTIL::Index> targets{ 0, 2 };
     std::cout << std::format(
         "doublescroll_train_data: {}\n",
-        mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
-    const FeatureVecShape feature_shape{ { 1, 0 }, { 2, 0 }, { 3, 0 } };
+        UTIL::mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
+    const UTIL::FeatureVecShape feature_shape{
+        { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 }
+    };
 
     const auto [doublescroll_train_pair, doublescroll_test_pair] =
         data_split<double>( doublescroll_train_data, doublescroll_test_data,
                             feature_shape, NVAR::warmup_offset( k2, s2 ), 1,
-                            UTIL::Standardizer<double>{} );
+                            UTIL::Standardizer<T>{} );
     const auto [doublescroll_train_samples, doublescroll_train_labels] =
         doublescroll_train_pair;
     const auto [doublescroll_warmup, doublescroll_test_labels] =
         doublescroll_test_pair;
 
     // Create NVAR model
-    NVAR::NVAR<double> doublescroll_test(
-        doublescroll_train_samples, doublescroll_train_labels, d2, k2, s2, p2,
-        use_const, constant, L2Solver( alpha ), true, { "v1", "v2", "I" },
-        "../data/forecast_data/doublescroll_reconstruct.csv" );
+    NVAR::NVAR<T, NVAR::nonlinear_t::poly, UTIL::L2Solver<T>, false>
+        doublescroll_test(
+            doublescroll_train_samples.rightCols( d2 ),
+            doublescroll_train_labels.rightCols( d2 ), d2, k2, s2, p2,
+            use_const, constant, targets, UTIL::L2Solver<T>( alpha ), true,
+            { "v1", "v2", "I" },
+            "../data/forecast_data/doublescroll_reconstruct.csv" );
 
     // Forecast
     auto doublescroll_forecast{ doublescroll_test.forecast(
-        doublescroll_warmup, doublescroll_test_labels, { 0, 1 } ) };
+        doublescroll_warmup.rightCols( d2 ),
+        doublescroll_test_labels.rightCols( d2 ) ) };
+
+    std::cout << "RMSE:\n"
+              << UTIL::RMSE<T>( doublescroll_forecast,
+                                doublescroll_test_labels.rightCols( d2 ) )
+              << std::endl;
 
     // Write data
+    const std::vector<std::string> col_titles{ "t",   "v1",  "v2", "I",
+                                               "v1'", "v2'", "I'" };
+    UTIL::Mat<T>                   write_data( doublescroll_forecast.rows(),
+                                               static_cast<UTIL::Index>( col_titles.size() ) );
+    write_data << doublescroll_test_labels.leftCols( 1 ), doublescroll_forecast,
+        doublescroll_test_labels.rightCols( d2 );
+
     const std::filesystem::path doublescroll_forecast_path{
         "../data/forecast_data/"
         "doublescroll_predict.csv"
     };
-    const std::vector<std::string> col_titles{ "v1", "v2", "I" };
 
     const auto write_success{ CSV::SimpleCSV<T>::write<T>(
-        doublescroll_forecast_path, doublescroll_forecast, col_titles ) };
+        doublescroll_forecast_path, write_data, col_titles ) };
 
     if ( !write_success ) {
         std::cerr << std::format( "Unable to write forecast data.\n" );
@@ -980,10 +1040,10 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::cout << std::format(
                 "train_samples: {}\ntrain_labels: {}\ntest_warmup: "
                 "{}\ntest_labels: {}\n",
-                mat_shape_str<double, -1, -1>( train_samples ),
-                mat_shape_str<double, -1, -1>( train_labels ),
-                mat_shape_str<double, -1, -1>( test_warmup ),
-                mat_shape_str<double, -1, -1>( test_labels ) );
+                UTIL::mat_shape_str<double, -1, -1>( train_samples ),
+                UTIL::mat_shape_str<double, -1, -1>( train_labels ),
+                UTIL::mat_shape_str<double, -1, -1>( test_warmup ),
+                UTIL::mat_shape_str<double, -1, -1>( test_labels ) );
 
             std::cout << "Done." << std::endl;
 
@@ -1010,8 +1070,8 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
             std::cout << "Writing result..." << std::endl;
             std::cout << std::format(
                 "forecast: {}, test_labels: {}\n",
-                mat_shape_str<double, -1, -1>( forecast ),
-                mat_shape_str<double, -1, -1>( test_labels ) );
+                UTIL::mat_shape_str<double, -1, -1>( forecast ),
+                UTIL::mat_shape_str<double, -1, -1>( test_labels ) );
 
             const std::filesystem::path forecast_path{
                 "../data/forecast_data"
@@ -1035,10 +1095,11 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
 
             std::cout << std::format(
                 "test_labels: {}, forecast: {}\n",
-                mat_shape_str<double, -1, -1>( test_labels ),
-                mat_shape_str<double, -1, -1>( forecast ) );
+                UTIL::mat_shape_str<double, -1, -1>( test_labels ),
+                UTIL::mat_shape_str<double, -1, -1>( forecast ) );
             std::cout << std::format(
-                "results: {}\n", mat_shape_str<double, -1, -1>( results ) );
+                "results: {}\n",
+                UTIL::mat_shape_str<double, -1, -1>( results ) );
 
             results << test_labels, forecast;
 

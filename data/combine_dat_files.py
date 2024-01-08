@@ -3,12 +3,18 @@ import re
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
-# mpl.rcParams["figure.dpi"] = 200
 mpl.rcParams["font.family"] = "Times New Roman"
+mpl.rcParams["axes.titlesize"] = 24
+mpl.rcParams["axes.labelsize"] = 28
+mpl.rcParams["xtick.labelsize"] = 16
+mpl.rcParams["ytick.labelsize"] = 16
+mpl.rcParams["xtick.direction"] = "in"
+mpl.rcParams["ytick.direction"] = "in"
+mpl.rcParams["legend.fontsize"] = 12
 
-savefigs = False
+save_figs = False
 show_plots = True
+save_data = False
 transient_sz = 19000
 
 src_dir = os.path.abspath(os.path.join(os.getcwd(), "src_files"))
@@ -62,63 +68,70 @@ for N in sorted(file_types["N"]):
             svals = line.strip().split("\t")
             it_data.append(np.float64(svals[0].strip()))
             iv_data.append(np.float64(svals[1].strip()))
-    print(N, len(it_data), len(mv_data) - transient_sz)
+    print(N, len(mv_data) - transient_sz, min(it_data), max(it_data), max(it_data) - min(it_data))
     times = np.linspace(min(it_data), max(it_data), len(mv_data) - transient_sz)
 
+    if save_data:
     # Writing measured data to combined file
-    filename = os.path.join(dir, f"{N}_measured.csv")
-    with open(filename, "w") as file:
-        lines = ["t,I,V\n"]
-        for t, i, v in zip(times, mi_data[transient_sz:], mv_data[transient_sz:]):
-            lines.append(",".join([str(t), str(i), str(v)]) + "\n")
-        file.writelines(lines)
+        filename = os.path.join(dir, f"{N}_measured.csv")
+        with open(filename, "w") as file:
+            lines = ["t,I,V\n"]
+            for t, i, v in zip(times, mi_data[transient_sz:], mv_data[transient_sz:]):
+                lines.append(",".join([str(t), str(i), str(v)]) + "\n")
+            file.writelines(lines)
 
-    # Writing integrated data to combined file
-    filename = os.path.join(dir, f"{N}_integrated.csv")
-    with open(filename, "w") as file:
-        lines = ["t,V\n"]
-        for (
-            t,
-            v,
-        ) in zip(it_data, iv_data):
-            lines.append(",".join([str(t), str(v)]) + "\n")
-        file.writelines(lines)
+        # Writing integrated data to combined file
+        filename = os.path.join(dir, f"{N}_integrated.csv")
+        with open(filename, "w") as file:
+            lines = ["t,V\n"]
+            for (
+                t,
+                v,
+            ) in zip(it_data, iv_data):
+                lines.append(",".join([str(t), str(v)]) + "\n")
+            file.writelines(lines)
 
     figure_name = os.path.join(os.getcwd(), "graphs", f"{N}_measured_v_integrated")
 
-    fig = plt.figure(figsize=(10, 6))
-    ax1 = fig.add_subplot(211)
-    ax2 = fig.add_subplot(212)
+    fig = plt.figure(figsize=(12, 4))
+    ax1 = fig.add_subplot(111)
+    #ax1 = fig.add_subplot(211)
+    #ax2 = fig.add_subplot(212)
     # plt.title(str(int(N)))
     # plt.title("Measured / Integrated Membrane Potential")
+    min = 13.5
+    max = 14.7
     ax1.plot(
-        times / 100,
+        (times / 100) - min,
+        #(times / 100,
+        #mi_data[:],
         mv_data[transient_sz:],
         linestyle="-",
         label="Measured Voltage",
         color="k",
         linewidth=0.8,
     )
-    ax2.plot(
-        times / 100,
-        mi_data[transient_sz:],
-        linestyle="-",
-        label="Injected Current",
-        color="k",
-        linewidth=0.8,
-    )
-    ax1.set_xlim(0, 10)
-    ax2.set_xlim(0, 10)
+    #ax1.plot(
+    #    times / 100,
+    #    mv_data[transient_sz:],
+    #    linestyle="-",
+    #    label="Injected Current",
+    #    color="k",
+    #    linewidth=0.8,
+    #)
+    dt_ = max - min
+    ax1.set_xlim(0, dt_)
+    #ax2.set_xlim(0, 10)
     #ax1.set_ylim(-50, 45)
-    ax1.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
-    ax1.set_ylabel("Measured Voltage / mV", fontname="Times New Roman", fontsize=14)
-    ax2.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
-    ax2.set_ylabel("Injected Current / mA", fontname="Times New Roman", fontsize=14)
+    ax1.set_xlabel("Injected Current / mA", fontname="Times New Roman", fontsize=18)
+    ax1.set_ylabel("Measured Voltage / mV", fontname="Times New Roman", fontsize=18)
+    #ax2.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
+    #ax2.set_ylabel("Injected Current / mA", fontname="Times New Roman", fontsize=14)
 
     # plt.plot(
     #    it_data, iv_data, linestyle="--", linewidth=0.8, label="integrated", color="r"
     # )
-    if savefigs:
+    if save_figs:
         plt.savefig(figure_name, dpi=200)
     if show_plots:
         plt.tight_layout()
