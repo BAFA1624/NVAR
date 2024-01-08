@@ -1,0 +1,23 @@
+Here we tuned input data with the following parameters:
+# Picking which current protocol to use. Options are: 17, 21-30.
+PROTOCOL_values = np.array([17, 23, 21])
+# PROTOCOL_values = np.array([17])
+# Number of nodes (N) inside the reservoir:
+N_values = np.array([1500])
+# The leaking rate (a), the fraction of the previous state preserved at each step:
+a_values = np.round(np.linspace(0.7, 1.0, 6), 2)
+# a_values = np.array([0.7])
+print(f"Leak rate search: {a_values}")
+# The spectral radius (p), amplifies or dampens the chaotic nature of the signal. <1 is typical:
+p_values = np.round(np.linspace(0.9, 1.3, 6), 2)
+# p_values = np.array([0.9])
+print(f"Spectral radius search: {p_values}")
+# Input scaling for the input vector u:
+iss_values = np.round(np.linspace(0.4, 1.2, 6), 2)
+# iss_values = np.array([0.4])
+print(f"Input scaling search: {iss_values}")
+# Regularization for the L2 regression:
+reg_values = np.array([0.0004])
+# Connectivity: The probability of any two nodes being connected. Including self-connections.
+in_connectivity_values = np.array([1.0])
+rc_connectivity_values = np.array([0.003])
