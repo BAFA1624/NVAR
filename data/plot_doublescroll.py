@@ -91,7 +91,7 @@ ax4.plot(forecast_data["t"], forecast_data["v2"], label="forecast_v2", marker="o
 ax4.plot(forecast_data["t"], forecast_data["v2'"], label="test_v2", linewidth=0.8, color="k")
 
 ax6.set_ylabel("I (Arbitrary Units)")
-#ax6.set_ylim(max(forecast_data["I"])+0.1*max(forecast_data["I"]), min(forecast_data["I"]) + 0.1 * min(forecast_data["I"]))
+ax6.set_ylim(max(forecast_data["I"])+0.1*max(forecast_data["I"]), min(forecast_data["I"]) + 0.1 * min(forecast_data["I"]))
 ax6.plot(forecast_data["t"], forecast_data["I"], label="forecast_I", marker="o", markersize=1, color="r", linestyle="")
 ax6.plot(forecast_data["t"], forecast_data["I'"], label="test_I", linewidth=0.8, color="k")
 ax6.set_xlabel("Time (Arbitrary Units)")

@@ -83,15 +83,18 @@ assert len(forecast_keys) == len(label_keys)
 
 times = forecast_data["t"]
 
-fig, ax2 = plt.subplots(1, 1, figsize=(12, 4))
+fig, ax2 = plt.subplots(1, 1, figsize=(12, 8))
 
 #ax1.plot(times, forecast_data["I"], linestyle="", marker="o", markersize=1, color="r")
 #ax1.plot(times, forecast_data["I'"], linestyle="-", linewidth=0.8, color="k")
 #ax1.set_ylabel("Standardized Current / mA")
-ax2.plot(times, forecast_data["V"], linestyle="", marker="o", markersize=1, color="r")
-ax2.plot(times, forecast_data["V'"], linestyle="-", linewidth=0.8, color="k")
+ax2.plot(times/100, forecast_data["V"], linestyle="", marker="o", markersize=1, color="r")
+ax2.plot(times/100, forecast_data["V'"], linestyle="-", linewidth=0.8, color="k")
 ax2.set_xlabel("Time / ms")
 ax2.set_ylabel("Standardized Voltage / mV")
+ymin = min(forecast_data["V'"]) - 0.1 * abs(min(forecast_data["V'"]))
+ymax = max(forecast_data["V'"]) + 0.1 * abs(max(forecast_data["V'"]))
+ax2.set_ylim(ymin, ymax)
 
 plt.tight_layout()
 plt.show()

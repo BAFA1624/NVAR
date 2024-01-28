@@ -324,3 +324,4 @@ fabric.properties
 
 # Preventing large datafiles from being uploaded
 data/hh_data/
+data/distribution_data/

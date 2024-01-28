@@ -76,7 +76,7 @@ n = 17
 nbins = 30
 
 fig, (ax1, ax2, ax3) = plt.subplots(
-    1, 3, figsize=(12, 4), sharey="row", constrained_layout=True
+    1, 3, figsize=(12, 8), sharey="row"
 )
 
 ax1.hist(csv_data[n]["default"]["measured"]["V"], bins=nbins, edgecolor="black")
@@ -85,10 +85,10 @@ ax1.set_xlabel("Measured Voltage Distribution / mV")
 ax1.set_ylabel("Frequency")
 
 ax2.hist(csv_data[n]["normalized"]["measured"]["V"], bins=nbins, edgecolor="black")
-ax2.set_xlabel("Normalized Voltage / mV")
+ax2.set_xlabel("Normalized Voltage")
 
 ax3.hist(csv_data[n]["standardized"]["measured"]["V"], bins=nbins, edgecolor="black")
-ax3.set_xlabel("Standardized Voltage / mV")
+ax3.set_xlabel("Standardized Voltage")
 ax3.set_xticks([-2, 0, 2, 4])
 
 plt.tight_layout()

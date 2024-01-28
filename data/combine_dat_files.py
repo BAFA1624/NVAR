@@ -3,9 +3,12 @@ import re
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
+
+
 mpl.rcParams["font.family"] = "Times New Roman"
 mpl.rcParams["axes.titlesize"] = 24
-mpl.rcParams["axes.labelsize"] = 28
+mpl.rcParams["axes.labelsize"] = 20
 mpl.rcParams["xtick.labelsize"] = 16
 mpl.rcParams["ytick.labelsize"] = 16
 mpl.rcParams["xtick.direction"] = "in"
@@ -93,24 +96,40 @@ for N in sorted(file_types["N"]):
 
     figure_name = os.path.join(os.getcwd(), "graphs", f"{N}_measured_v_integrated")
 
-    fig = plt.figure(figsize=(12, 4))
-    ax1 = fig.add_subplot(111)
+    #fig = plt.figure(figsize=(12, 4))
+    #ax1 = fig.add_subplot(111)
     #ax1 = fig.add_subplot(211)
     #ax2 = fig.add_subplot(212)
     # plt.title(str(int(N)))
     # plt.title("Measured / Integrated Membrane Potential")
-    min = 13.5
-    max = 14.7
-    ax1.plot(
-        (times / 100) - min,
-        #(times / 100,
-        #mi_data[:],
-        mv_data[transient_sz:],
-        linestyle="-",
-        label="Measured Voltage",
-        color="k",
-        linewidth=0.8,
-    )
+
+    fig = plt.figure(figsize=(16, 8))
+
+    gs = GridSpec(3, 1)
+
+    ax1 = fig.add_subplot(gs[0:2,:])
+    ax2 = fig.add_subplot(gs[2:,:])
+
+    ax1.plot(times / 100, mv_data[transient_sz:], linestyle="-", color="b", linewidth=0.8)
+    ax2.plot(times / 100, mi_data[transient_sz:], linestyle="-", color="r", linewidth=0.8)
+    
+    ax1.set_ylabel("Measured Voltage / mV")
+    ax2.set_xlabel("Time / ms")
+    ax2.set_ylabel("Injected current / mA")
+    
+    ax1.set_xlim(0, 0.7)
+    ax2.set_xlim(0, 0.7)
+
+    #min = 13.5
+    #max = 14.7
+    #ax1.plot(
+    #    (times / 100) - min,
+    #    mv_data[transient_sz:],
+    #    linestyle="-",
+    #    label="Measured Voltage",
+    #    color="k",
+    #    linewidth=0.8,
+    #)
     #ax1.plot(
     #    times / 100,
     #    mv_data[transient_sz:],
@@ -119,12 +138,12 @@ for N in sorted(file_types["N"]):
     #    color="k",
     #    linewidth=0.8,
     #)
-    dt_ = max - min
-    ax1.set_xlim(0, dt_)
+    #dt_ = max - min
+    #ax1.set_xlim(0, dt_)
     #ax2.set_xlim(0, 10)
     #ax1.set_ylim(-50, 45)
-    ax1.set_xlabel("Injected Current / mA", fontname="Times New Roman", fontsize=18)
-    ax1.set_ylabel("Measured Voltage / mV", fontname="Times New Roman", fontsize=18)
+    #ax1.set_xlabel("Injected Current / mA", fontname="Times New Roman", fontsize=18)
+    #ax1.set_ylabel("Measured Voltage / mV", fontname="Times New Roman", fontsize=18)
     #ax2.set_xlabel("Time / ms", fontname="Times New Roman", fontsize=14)
     #ax2.set_ylabel("Injected Current / mA", fontname="Times New Roman", fontsize=14)
 

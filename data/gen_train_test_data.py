@@ -1,37 +1,52 @@
 import os
 from sklearn.model_selection import KFold, TimeSeriesSplit, ShuffleSplit, RepeatedKFold
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import re
 import numpy as np
 
 
-show_plots = False
+mpl.rcParams["font.family"] = "Times New Roman"
+mpl.rcParams["axes.titlesize"] = 24
+mpl.rcParams["axes.labelsize"] = 20
+mpl.rcParams["xtick.labelsize"] = 16
+mpl.rcParams["ytick.labelsize"] = 16
+mpl.rcParams["xtick.direction"] = "in"
+mpl.rcParams["ytick.direction"] = "in"
+mpl.rcParams["legend.fontsize"] = 12
+
+
+show_plots = True
+save_figs = False
 
 
 def plot_data(splits, xmin=None, xmax=None, show=True, filename=None, savefig=False):
     for i in splits:
         plt.plot(
-            splits[i]["train"]["X"][:, 0],
+            splits[i]["train"]["X"][:, 0]/100,
             splits[i]["train"]["X"][:, -1],
             linestyle="-",
             linewidth=0.8,
             label=f"{i}_train",
-            alpha=0.5,
+            #label="Training data",
             color="k",
         )
         plt.plot(
-            splits[i]["test"]["X"][:, 0],
+            splits[i]["test"]["X"][:, 0]/100,
             splits[i]["test"]["X"][:, -1],
             linestyle="-",
             linewidth=0.8,
             label=f"{i}_test",
-            alpha=0.5,
+            #label="Testing data",
             color="r",
         )
-    if filename:
+    if filename and not savefig:
         plt.title(filename)
+    #plt.xlabel("Time / ms")
+    #plt.ylabel("Measured Voltage / mV")
     plt.xlim(xmin, xmax)
     plt.legend()
+    plt.tight_layout()
     if savefig and filename:
         path = os.path.join(os.getcwd(), "graphs", filename.split(".")[0])
         plt.savefig(path)
@@ -214,7 +229,7 @@ files = os.listdir(source_dir)
 pattern = re.compile(r"^(?P<N>[\d]+)_(?P<filetype>[\w]+).csv$")
 file_nos = [17, *range(21, 31)]
 cv = simple_split
-cv_args = [1, 0.1]
+cv_args = [1, 0.5]
 for j, file in enumerate(files):
     match = pattern.match(file)
     if not match:
@@ -266,11 +281,11 @@ for j, file in enumerate(files):
         measured_splits,
         xmin=measured_min,
         xmax=measured_max,
-        show=True,
+        show=show_plots,
         filename=get_filename(
             N, 0, None, len(measured_data["t"]), 0, 0, cv_args[0], "png"
         ),
-        savefig=True,
+        savefig=save_figs,
     )
     integrated_min = min(integrated_data["t"])
     integrated_max = max(integrated_data["t"])
@@ -278,11 +293,11 @@ for j, file in enumerate(files):
         integrated_splits,
         xmin=integrated_min,
         xmax=integrated_max,
-        show=True,
+        show=show_plots,
         filename=get_filename(
             N, 0, None, len(integrated_data["t"]), 1, 0, cv_args[0], "png"
         ),
-        savefig=True,
+        savefig=save_figs,
     )
 
     for i in measured_splits:

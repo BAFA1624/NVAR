@@ -708,68 +708,71 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         { 0, 0 }, { 1, 0 }, { 2, 0 }
     };
     const bool                 use_const{ true };
-    const T /*alpha{ 5E-2 },*/ constant{ 1 };
-    const UTIL::Index d{ 2 }, /*k{ 3 }, s{ 5 }, p{ 2 },*/ data_stride{ 4 };
-    const std::vector<UTIL::Index> train_targets{ 1 };
+    const T /*alpha{ 1E-4 },*/ constant{ 1 };
+    const UTIL::Index d{ 2 }, /*k{ 1 }, s{ 1 }, p{ 3 },*/ data_stride{ 4 };
+    const std::vector<UTIL::Index> train_targets{ 1, 2, 3 };
 
-    const std::vector<UTIL::Index> kvals{ 1, 2, 3, 4 },
-        svals{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }, pvals{ 1, 2, 3 };
+    const std::vector<UTIL::Index> kvals{ 1, 2, 3 },
+        svals{ 1,  2,  3,  4,  5,  6,  7,  8,  9,  10,
+               11, 12, 13, 14, 15, 16, 17, 18, 19, 20 },
+        pvals{ 2, 3, 4 };
     const std::vector<T> alphavals{ 10, 1, .1, .01, .001, 0.0001, 0.00001 };
 
     UTIL::Index best_k{ 1 }, best_s{ 1 }, best_p{ 1 }, best_alpha{ 10 };
     T           best_rmse{ 1000000000000. };
 
-    // for ( const auto alpha : alphavals ) {
-    //     for ( const auto k : kvals ) {
-    //         for ( const auto s : svals ) {
-    //             for ( const auto p : pvals ) {
-    //                 std::cout << std::format(
-    //                     "d = {}, k = {}, s = {}, p = {}, alpha = {}\n", d, k,
-    //                     s, p, alpha );
+    for ( const auto alpha : alphavals ) {
+        for ( const auto k : kvals ) {
+            for ( const auto s : svals ) {
+                for ( const auto p : pvals ) {
+                    std::cout << std::format(
+                        "d = {}, k = {}, s = {}, p = {}, alpha = {}\n", d, k, s,
+                        p, alpha );
 
-    //                const auto [train_pair, test_pair] =
-    //                    data_split<T>( data_pool, 0.75, feature_shape,
-    //                                   NVAR::warmup_offset( k, s ),
-    //                                   data_stride, UTIL::Standardizer<T>{} );
-    //                const auto [train_samples, train_labels] = train_pair;
-    //                const auto [test_warmup, test_labels] = test_pair;
+                    const auto [train_pair, test_pair] =
+                        data_split<T>( data_pool, 0.75, feature_shape,
+                                       NVAR::warmup_offset( k, s ), data_stride,
+                                       UTIL::Standardizer<T>{} );
+                    const auto [train_samples, train_labels] = train_pair;
+                    const auto [test_warmup, test_labels] = test_pair;
 
-    //                NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
-    //                    train_samples.rightCols( d ),
-    //                    train_labels.rightCols( d ), d, k, s, p, use_const,
-    //                    constant, train_targets, UTIL::L2Solver<T>( alpha ),
-    //                    false );
+                    NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
+                        train_samples.rightCols( d ),
+                        train_labels.rightCols( d ), d, k, s, p, use_const,
+                        constant, train_targets, UTIL::L2Solver<T>( alpha ),
+                        false );
 
 
-    //                const auto forecast{ test.forecast(
-    //                    test_warmup.rightCols( d ),
-    //                    test_labels.rightCols( d ) ) };
+                    const auto forecast{ test.forecast(
+                        test_warmup.rightCols( d ),
+                        test_labels.rightCols( d ) ) };
 
-    //                const auto rmse{ UTIL::RMSE<T>(
-    //                    forecast, test_labels.rightCols( d ) ) };
-    //                std::cout << "rmse: " << rmse << std::endl;
-    //                if ( rmse( 1 ) < best_rmse ) {
-    //                    best_rmse = rmse( 1 );
-    //                    best_k = k;
-    //                    best_s = s;
-    //                    best_p = p;
-    //                    best_alpha = alpha;
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
+                    const auto rmse{ UTIL::RMSE<T>(
+                        forecast, test_labels.rightCols( d ) ) };
+                    std::cout << "rmse: " << rmse << std::endl;
+                    if ( rmse( 1 ) < best_rmse ) {
+                        best_rmse = rmse( 1 );
+                        best_k = k;
+                        best_s = s;
+                        best_p = p;
+                        best_alpha = alpha;
+                    }
+                }
+            }
+        }
+    }
 
-    const auto [train_pair, test_pair] = data_split<T>(
-        data_pool, 0.75, feature_shape, NVAR::warmup_offset( best_k, best_s ),
-        data_stride, UTIL::Standardizer<T>{} );
+    const auto [train_pair, test_pair] =
+        data_split<T>( data_pool, 0.75, feature_shape,
+                       NVAR::warmup_offset( best_k, best_s /*k, s*/ ),
+                       data_stride, UTIL::Standardizer<T>{} );
     const auto [train_samples, train_labels] = train_pair;
     const auto [test_warmup, test_labels] = test_pair;
 
     NVAR::NVAR<T, NVAR::nonlinear_t::poly> test(
         train_samples.rightCols( d ), train_labels.rightCols( d ), d, best_k,
-        best_s, best_p, use_const, constant, train_targets,
-        UTIL::L2Solver<T>( best_alpha ), true, { "I", "V" },
+        best_s, best_p, /*k, s, p,*/ use_const, constant, train_targets,
+        UTIL::L2Solver<T>( best_alpha /*alpha*/ ), true, { "I", "V" },
         "../data/forecast_data/tmp.csv" );
 
     const auto forecast{ test.forecast( test_warmup.rightCols( d ),
@@ -911,9 +914,9 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
     const auto doublescroll_test_data{ doublescroll_test_csv.atv() };
 
     const bool                     use_const{ false };
-    const UTIL::Index              d2{ 3 }, k2{ 3 }, s2{ 2 }, p2{ 3 };
+    const UTIL::Index              d2{ 3 }, k2{ 2 }, s2{ 2 }, p2{ 3 };
     const T                        alpha{ 1E-1 }, constant{ 1 };
-    const std::vector<UTIL::Index> targets{ 0, 2 };
+    const std::vector<UTIL::Index> targets{ 2 };
     std::cout << std::format(
         "doublescroll_train_data: {}\n",
         UTIL::mat_shape_str<double, -1, -1>( doublescroll_train_data ) );
