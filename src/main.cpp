@@ -125,12 +125,12 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
         "../data/train_test_src/28_measured.csv",
     };
     const std::vector<unsigned>    seeds{ 100 };
-    const std::vector<UTIL::Index> res_sizes{ 350, 500 }, warmup_sizes{ 0 };
-    const std::vector<T>           leak_rates{ 0.025, 0.05, 0.075, 0.1,  0.15,
-                                     0.25,  0.35, 0.55,  0.85, 0.95 },
-        sparsity_values{ 0.1, 0.2, 0.3, 0.4 },
-        spectral_radii{ 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 },
-        alpha_values{ 1E-2, 1E-5, 1E-7, 1E-10 }, input_scales{ 0.5 };
+    const std::vector<UTIL::Index> res_sizes{ 2000 }, warmup_sizes{ 1000 };
+    const std::vector<T>           leak_rates{ 0.9,  0.91, 0.92, 0.93, 0.94,
+                                     0.95, 0.96, 0.97, 0.98, 0.99 },
+        sparsity_values{ 0.005 },
+        spectral_radii{ 0.3, 0.5, 0.6, 0.7, 0.8, 1.0, 1.2, 1.8 },
+        alpha_values{ 1E-2, 1E-5, 1E-7, 1E-10 }, input_scales{ 0.5, 1., 1.5 };
 
     const auto N_tests{ datafiles.size() * seeds.size() * res_sizes.size()
                         * warmup_sizes.size() * leak_rates.size()
@@ -199,7 +199,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                             esn(
                                                 d, n_node, leak, sparsity,
                                                 radius, seed, warmup, bias,
-                                                input_scale,
+                                                input_scale, { 1 },
                                                 []( const T x ) {
                                                     return std::tanh( x );
                                                 },
@@ -218,8 +218,7 @@ main( [[maybe_unused]] int argc, [[maybe_unused]] char * argv[] ) {
                                             clock::now()
                                         };
                                         const auto forecast{ esn.forecast(
-                                            test_labels.rightCols( d ),
-                                            { 0 } ) };
+                                            test_labels.rightCols( d ) ) };
                                         const auto forecast_end{ clock::now() };
 
                                         const auto test_time{
