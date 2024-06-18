@@ -52,12 +52,14 @@ def get_best_n(json_results, n):
     best_n = {i: None for i in range(1, n + 1)}
     count = 0
     for params in json_results:
+        if not params["rmse"]:
+            continue
         if count < n:
             count += 1
             best_n[count] = params
         else:
             for i in range(1, n + 1):
-                if params["rmse"] and params["rmse"] < best_n[i]["rmse"]:
+                if params["rmse"] < best_n[i]["rmse"]:
                     best_n[i] = params
                     for j in range(n, i, -1):
                         best_n[j] = best_n[j - 1]
@@ -76,6 +78,12 @@ filenames = [
     "22_measured_100.json",
     "25_measured_100.json",
     "28_measured_100.json",
+]
+filenames = [
+    "17_measured_100_2024-01-03_05:10:06.444399238.json",
+    "22_measured_100_2024-01-03_06:18:12.035331219.json",
+    "25_measured_100_2024-01-03_07:27:14.647715906.json",
+    "28_measured_100_2024-01-03_08:32:51.253963463.json"
 ]
 json_files = [(file, get_json(os.path.join(basepath, file))) for file in filenames]
 
