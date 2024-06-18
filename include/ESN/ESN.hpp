@@ -105,7 +105,7 @@ class ESN
     A_R( const UTIL::ConstRefMat<T> & R ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Vec<T>
     R_next( const UTIL::ConstRefVec<T> & R,
-            const UTIL::ConstRefVec<T> & Wi_Xi ) const noexcept; // Implemented
+            const UTIL::ConstRefVec<T> & Wi_Xi ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::Mat<T>
     construct_reservoir_states( const UTIL::ConstRefMat<T> & X ) const noexcept;
     [[nodiscard]] constexpr inline UTIL::ConstRefMat<T>
@@ -507,6 +507,7 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
     // Add reservoir states to feature vector
     feature( Eigen::seq( offset, feature_size() - 1 ) ) = Ri;
 
+
     return feature;
 }
 
@@ -521,13 +522,10 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
                                             const UTIL::ConstRefMat<T> & R )
     const noexcept {
     UTIL::Mat<T> features( feature_size(), X.cols() );
-    std::cout << std::format( "Feature: {}\n",
-                              UTIL::mat_shape_str<T, -1, -1>( features ) );
-    UTIL::Index offset{ 0 };
+    UTIL::Index  offset{ 0 };
 
     // If necessary, add bias to feature matrix
     if constexpr ( m_feature_bias ) {
-        std::cout << "Adding bias at 0th index." << std::endl;
         features( 0, Eigen::placeholders::all ) =
             UTIL::RowVec<T>::Ones( features.cols() );
         offset++;
@@ -535,17 +533,11 @@ ESN<T, W_in_init, A_init, Feature_init, S, Generator, target_difference,
 
     // If necessary, add linear component to feature matrix
     if constexpr ( m_feature_linear ) {
-        std::cout << "Adding linear features from " << offset << " - "
-                  << offset + m_d - 1 << std::endl;
-
         features( Eigen::seq( offset, offset + m_d - 1 ),
                   Eigen::placeholders::all )
             << X;
         offset += m_d;
     }
-
-    std::cout << "Adding reservoir states from " << offset << " - "
-              << feature_size() - 1 << std::endl;
 
     // Add reservoir states to feature matrix
     features( Eigen::seq( offset, Eigen::placeholders::last ),
